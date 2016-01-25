@@ -236,6 +236,9 @@ func main() {
 		allocator, defaultSubnet = createAllocator(router.Router, iprangeCIDR, ipsubnetCIDR, determineQuorum(peerCount, peers), db, isKnownPeer,
 			useAWSVPC, awsRouteTableId)
 		observeContainers(allocator)
+		ids, err := dockerCli.AllContainerIDs()
+		checkFatal(err)
+		allocator.AllContainerIDs(ids)
 	} else if peerCount > 0 {
 		Log.Fatal("--init-peer-count flag specified without --ipalloc-range")
 	}
