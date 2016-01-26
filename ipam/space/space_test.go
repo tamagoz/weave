@@ -77,19 +77,19 @@ func TestLowlevel(t *testing.T) {
 	wt.AssertErrorInterface(t, (*error)(nil), s.Free(0), "free not allocated")
 	wt.AssertErrorInterface(t, (*error)(nil), s.Free(100), "double free")
 
-	r, ok := s.Donate(address.NewRange(0, 1000))
+	r, ok := s.Donate(address.NewRange(0, 1000), false)
 	require.True(t, ok && r.Start == 125 && r.Size() == 25, "donate")
 
 	// test Donate when addresses are scarce
 	s = New()
-	r, ok = s.Donate(address.NewRange(0, 1000))
+	r, ok = s.Donate(address.NewRange(0, 1000), false)
 	require.True(t, !ok, "donate on empty space should fail")
 	s.Add(0, 3)
 	require.NoError(t, s.Claim(0))
 	require.NoError(t, s.Claim(2))
-	r, ok = s.Donate(address.NewRange(0, 1000))
+	r, ok = s.Donate(address.NewRange(0, 1000), false)
 	require.True(t, ok && r.Start == 1 && r.End == 2, "donate")
-	r, ok = s.Donate(address.NewRange(0, 1000))
+	r, ok = s.Donate(address.NewRange(0, 1000), false)
 	require.True(t, !ok, "donate should fail")
 }
 
@@ -155,7 +155,7 @@ func TestSpaceFree(t *testing.T) {
 	// Check we are full
 	ok, _ := space.Allocate(entireRange)
 	require.True(t, !ok, "Should have failed to get address")
-	r, _ = space.Donate(entireRange)
+	r, _ = space.Donate(entireRange, false)
 	require.True(t, r.Size() == 0, "Wrong space")
 
 	// Free in the middle
@@ -206,7 +206,7 @@ func TestDonateSimple(t *testing.T) {
 	ps1 := makeSpace(ipAddr1, size)
 
 	// Empty space set should split in two and give me the second half
-	r, ok := ps1.Donate(address.NewRange(ip(testAddr1), size))
+	r, ok := ps1.Donate(address.NewRange(ip(testAddr1), size), false)
 	numGivenUp := r.Size()
 	require.True(t, ok, "Donate result")
 	require.Equal(t, "10.0.1.24", r.Start.String(), "Invalid start")
@@ -216,7 +216,7 @@ func TestDonateSimple(t *testing.T) {
 	// Now check we can give the rest up.
 	count := 0 // count to avoid infinite loop
 	for ; count < 1000; count++ {
-		r, ok := ps1.Donate(address.NewRange(ip(testAddr1), size))
+		r, ok := ps1.Donate(address.NewRange(ip(testAddr1), size), false)
 		if !ok {
 			break
 		}
@@ -249,7 +249,7 @@ func TestDonateHard(t *testing.T) {
 	}
 
 	// Now split
-	newRange, ok := spaceset.Donate(address.NewRange(start, size))
+	newRange, ok := spaceset.Donate(address.NewRange(start, size), false)
 	require.True(t, ok, "GiveUpSpace result")
 	require.Equal(t, ip("10.0.1.23"), newRange.Start)
 	require.Equal(t, address.Offset(24), newRange.Size())
@@ -260,4 +260,35 @@ func TestDonateHard(t *testing.T) {
 	expected.Add(start, 23)
 	expected.ours = add(nil, ip("10.0.1.47"), ip("10.0.1.48"))
 	require.Equal(t, expected, spaceset)
+}
+
+func TestDonateCIDR(t *testing.T) {
+	var (
+		start                = ip("10.0.1.0")
+		size  address.Offset = 256
+	)
+
+	spaceset := makeSpace(start, size)
+	ok, _ := spaceset.Allocate(address.NewRange(ip("10.0.1.1"), 1))
+	newRange, ok := spaceset.Donate(address.NewRange(start, size), true)
+
+	require.True(t, ok, "")
+	require.Equal(t, ip("10.0.1.128"), newRange.Start, "")
+	require.Equal(t, address.Offset(128), newRange.Size(), "")
+}
+
+func TestDonateEmptyCIDR(t *testing.T) {
+	var (
+		start                = ip("10.0.1.0")
+		size  address.Offset = 256
+	)
+
+	spaceset := makeSpace(start, size)
+	for i := address.Offset(0); i < size; i++ {
+		ok, _ := spaceset.Allocate(address.NewRange(address.Add(start, i), 1))
+		require.True(t, ok, "")
+	}
+
+	_, ok := spaceset.Donate(address.NewRange(start, size), true)
+	require.True(t, !ok, "")
 }

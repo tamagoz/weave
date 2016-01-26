@@ -34,6 +34,39 @@ func (r Range) AsCIDRString() string {
 	return CIDR{Start: r.Start, PrefixLen: prefixLen}.String()
 }
 
+// CIDRs return list of subranges in the CIDR notation which covers completely
+// the [r.Start, r.end) range
+func (r Range) CIDRs() *[]CIDR {
+	start, end := r.Start, r.End-1
+	cidrList := make([]CIDR, 0)
+
+	const (
+		fullMask     = ^Address(0)
+		maxPrefixLen = 32
+	)
+
+	for end >= start {
+		mask := fullMask
+		prefixLen := maxPrefixLen
+		for mask > 0 {
+			tmpMask := mask << 1
+			if (start&tmpMask) != start || (start|^tmpMask) > end {
+				break
+			}
+			mask = tmpMask
+			prefixLen--
+		}
+		cidrList = append(cidrList, CIDR{start, prefixLen})
+		start |= ^mask
+		if (start + 1) < start { // check for overflow
+			break
+		}
+		start++
+	}
+
+	return &cidrList
+}
+
 type CIDR struct {
 	Start     Address
 	PrefixLen int

@@ -720,7 +720,8 @@ func (alloc *Allocator) donateSpace(r address.Range, to mesh.PeerName) {
 	defer alloc.sendRingUpdate(to)
 
 	alloc.debugln("Peer", to, "asked me for space")
-	chunk, ok := alloc.space.Donate(r)
+	// oldRanges := alloc.space.OwnedRanges()
+	chunk, ok := alloc.space.Donate(r, false)
 	if !ok {
 		free := alloc.space.NumFreeAddressesInRange(r)
 		common.Assert(free == 0)

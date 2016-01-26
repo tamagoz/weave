@@ -122,16 +122,42 @@ func (s *Space) biggestFreeRange(r address.Range) (biggest address.Range) {
 	return
 }
 
-func (s *Space) Donate(r address.Range) (address.Range, bool) {
-	biggest := s.biggestFreeRange(r)
+func (s *Space) biggestCIDRFreeRange(r address.Range) (biggest address.CIDR) {
+	biggestSize := address.Offset(0)
+	s.walkFree(r, func(chunk address.Range) bool {
+		for _, cidr := range *chunk.CIDRs() {
+			if size := cidr.Size(); size >= biggestSize {
+				biggest = cidr
+				biggestSize = size
+			}
+		}
+		return false
+	})
+	return
+}
 
-	if biggest.Size() == 0 {
-		return address.Range{}, false
+func (s *Space) Donate(r address.Range, isCIDRAligned bool) (address.Range, bool) {
+	var biggest address.Range
+
+	if !isCIDRAligned {
+		biggest = s.biggestFreeRange(r)
+
+		if biggest.Size() == 0 {
+			return address.Range{}, false
+		}
+
+		// Donate half of that biggest free range. Note size/2 rounds down, so
+		// the resulting donation size rounds up, and in particular can't be empty.
+		biggest.Start = address.Add(biggest.Start, biggest.Size()/2)
+	} else {
+		// Donate the biggest CIDR free range
+		biggestCIDR := s.biggestCIDRFreeRange(r)
+		biggest = biggestCIDR.Range()
+
+		if biggest.Size() == 0 {
+			return address.Range{}, false
+		}
 	}
-
-	// Donate half of that biggest free range. Note size/2 rounds down, so
-	// the resulting donation size rounds up, and in particular can't be empty.
-	biggest.Start = address.Add(biggest.Start, biggest.Size()/2)
 
 	s.ours = subtract(s.ours, biggest.Start, biggest.End)
 	s.free = subtract(s.free, biggest.Start, biggest.End)
