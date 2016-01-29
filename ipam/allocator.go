@@ -578,6 +578,8 @@ func (alloc *Allocator) establishRing() {
 func (alloc *Allocator) createRing(peers []mesh.PeerName) {
 	alloc.debugln("Paxos consensus:", peers)
 	alloc.ring.ClaimForPeers(normalizeConsensus(peers))
+	// We assume that the peer has not possessed any address ranges before
+	alloc.monitor.HandleUpdate(nil, alloc.ring.OwnedRanges())
 	alloc.gossip.GossipBroadcast(alloc.Gossip())
 	alloc.ringUpdated()
 }
@@ -678,6 +680,7 @@ func (alloc *Allocator) update(sender mesh.PeerName, msg []byte) error {
 	// shouldn't get updates for a empty Ring. But tolerate
 	// them just in case.
 	if data.Ring != nil {
+		oldRanges := alloc.ring.OwnedRanges()
 		switch err = alloc.ring.Merge(*data.Ring); err {
 		case ring.ErrDifferentSeeds:
 			return fmt.Errorf("IP allocation was seeded by different peers (received: %v, ours: %v)",
@@ -688,6 +691,7 @@ func (alloc *Allocator) update(sender mesh.PeerName, msg []byte) error {
 		default:
 			if err == nil && !alloc.ring.Empty() {
 				alloc.pruneNicknames()
+				alloc.monitor.HandleUpdate(oldRanges, alloc.ring.OwnedRanges())
 				alloc.ringUpdated()
 			}
 			return err
@@ -736,8 +740,11 @@ func (alloc *Allocator) donateSpace(r address.Range, to mesh.PeerName) {
 		return
 	}
 	alloc.debugln("Giving range", chunk, "to", to)
+	oldRanges := alloc.ring.OwnedRanges()
 	alloc.ring.GrantRangeToHost(chunk.Start, chunk.End, to)
 	alloc.persistRing()
+	newRanges := alloc.ring.OwnedRanges()
+	alloc.monitor.HandleUpdate(oldRanges, newRanges)
 }
 
 func (alloc *Allocator) assertInvariants() {

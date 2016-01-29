@@ -125,7 +125,7 @@ func (s *Space) biggestFreeRange(r address.Range) (biggest address.Range) {
 func (s *Space) biggestCIDRFreeRange(r address.Range) (biggest address.CIDR) {
 	biggestSize := address.Offset(0)
 	s.walkFree(r, func(chunk address.Range) bool {
-		for _, cidr := range *chunk.CIDRs() {
+		for _, cidr := range chunk.CIDRs() {
 			if size := cidr.Size(); size >= biggestSize {
 				biggest = cidr
 				biggestSize = size
