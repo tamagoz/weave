@@ -36,7 +36,7 @@ func (r Range) AsCIDRString() string {
 
 // CIDRs return list of subranges in the CIDR notation which covers completely
 // the [r.Start, r.end) range
-func (r Range) CIDRs() *[]CIDR {
+func (r Range) CIDRs() []CIDR {
 	start, end := r.Start, r.End-1
 	cidrList := make([]CIDR, 0)
 
@@ -64,7 +64,7 @@ func (r Range) CIDRs() *[]CIDR {
 		start++
 	}
 
-	return &cidrList
+	return cidrList
 }
 
 type CIDR struct {

@@ -27,7 +27,7 @@ func TestCIDRs(t *testing.T) {
 		CIDR{ip("192.168.2.32"), 29},
 		CIDR{ip("192.168.2.40"), 31},
 	}
-	cidrs := *r.CIDRs()
+	cidrs := r.CIDRs()
 
 	require.Equal(t, len(cidrs), len(expectedCIDRs), "")
 	require.Equal(t, expectedCIDRs, cidrs, "")
@@ -36,14 +36,14 @@ func TestCIDRs(t *testing.T) {
 func TestSingleCIDR(t *testing.T) {
 	r := NewRange(ip("192.168.1.0"), 256)
 	expectedCIDR := CIDR{ip("192.168.1.0"), 24}
-	cidrs := *r.CIDRs()
+	cidrs := r.CIDRs()
 
 	require.Equal(t, len(cidrs), 1)
 	require.Equal(t, expectedCIDR, cidrs[0])
 
 	r = NewRange(ip("192.168.1.1"), 1)
 	expectedCIDR = CIDR{ip("192.168.1.1"), 32}
-	cidrs = *r.CIDRs()
+	cidrs = r.CIDRs()
 
 	require.Equal(t, len(cidrs), 1)
 	require.Equal(t, expectedCIDR, cidrs[0])
