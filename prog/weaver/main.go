@@ -19,6 +19,7 @@ import (
 	"github.com/weaveworks/weave/common/docker"
 	"github.com/weaveworks/weave/db"
 	"github.com/weaveworks/weave/ipam"
+	"github.com/weaveworks/weave/ipam/monitor"
 	"github.com/weaveworks/weave/nameserver"
 	weavenet "github.com/weaveworks/weave/net"
 	"github.com/weaveworks/weave/net/address"
@@ -70,6 +71,9 @@ func main() {
 		trustedSubnetStr   string
 		dbPrefix           string
 
+		useAWSVPC       bool
+		awsRouteTableId string
+
 		defaultDockerHost = "unix:///var/run/docker.sock"
 	)
 
@@ -106,6 +110,8 @@ func main() {
 	mflag.StringVar(&dbPrefix, []string{"-db-prefix"}, "weave", "pathname/prefix of filename to store data")
 
 	mflag.StringVar(&trustedSubnetStr, []string{"-trusted-subnets"}, "", "Command separated list of trusted subnets in CIDR notation")
+	mflag.BoolVar(&useAWSVPC, []string{"#awsvpc", "-awsvpc"}, false, "use AWS VPC for routing")
+	mflag.StringVar(&awsRouteTableId, []string{"#aws-routetableid", "-aws-routetableid"}, "", "AWS VPC Route Table Id")
 
 	// crude way of detecting that we probably have been started in a
 	// container, with `weave launch` --> suppress misleading paths in
@@ -195,7 +201,8 @@ func main() {
 		defaultSubnet address.CIDR
 	)
 	if iprangeCIDR != "" {
-		allocator, defaultSubnet = createAllocator(router.Router, iprangeCIDR, ipsubnetCIDR, determineQuorum(peerCount, peers), db, isKnownPeer)
+		allocator, defaultSubnet = createAllocator(router.Router, iprangeCIDR, ipsubnetCIDR, determineQuorum(peerCount, peers), db, isKnownPeer,
+			useAWSVPC, awsRouteTableId)
 		observeContainers(allocator)
 	} else if peerCount > 0 {
 		Log.Fatal("--init-peer-count flag specified without --ipalloc-range")
@@ -284,6 +291,9 @@ func createOverlay(datapathName string, ifaceName string, host string, port int,
 	overlay := weave.NewOverlaySwitch()
 	var bridge weave.Bridge
 	switch {
+	case useAWSVPC:
+		overlay.Add("null", nullOverlay)
+		bridge = weave.NullBridge{}
 	case datapathName != "" && ifaceName != "":
 		Log.Fatal("At most one of --datapath and --iface must be specified.")
 	case datapathName != "":
@@ -315,7 +325,8 @@ func parseAndCheckCIDR(cidrStr string) address.CIDR {
 	return cidr
 }
 
-func createAllocator(router *mesh.Router, ipRangeStr string, defaultSubnetStr string, quorum uint, db db.DB, isKnownPeer func(mesh.PeerName) bool) (*ipam.Allocator, address.CIDR) {
+func createAllocator(router *mesh.Router, ipRangeStr string, defaultSubnetStr string, quorum uint, db db.DB, isKnownPeer func(mesh.PeerName) bool,
+	useAWSVPC bool, awsRouteTableId string) (*ipam.Allocator, address.CIDR) {
 	ipRange := parseAndCheckCIDR(ipRangeStr)
 	defaultSubnet := ipRange
 	if defaultSubnetStr != "" {
@@ -324,7 +335,17 @@ func createAllocator(router *mesh.Router, ipRangeStr string, defaultSubnetStr st
 			Log.Fatalf("IP address allocation default subnet %s does not overlap with allocation range %s", defaultSubnet, ipRange)
 		}
 	}
-	allocator := ipam.NewAllocator(router.Ourself.Peer.Name, router.Ourself.Peer.UID, router.Ourself.Peer.NickName, ipRange.Range(), quorum, db, isKnownPeer, false)
+
+	var mon monitor.Monitor
+	mon = monitor.NewNullMonitor()
+	isCIDRAligned := false
+	if useAWSVPC {
+		Log.Infoln("Using AWS VPC monitor")
+		mon = monitor.NewAwsVPCMonitor(awsRouteTableId)
+		isCIDRAligned = true
+	}
+	allocator := ipam.NewAllocator(router.Ourself.Peer.Name, router.Ourself.Peer.UID, router.Ourself.Peer.NickName, ipRange.Range(), quorum, db, isKnownPeer,
+		isCIDRAligned, mon)
 
 	allocator.SetInterfaces(router.NewGossip("IPallocation", allocator))
 	allocator.Start()

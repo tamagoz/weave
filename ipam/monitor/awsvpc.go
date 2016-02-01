@@ -1,8 +1,8 @@
 package monitor
 
-import (
-	"os"
+// TODO docs
 
+import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -25,31 +25,32 @@ type AwsVPCMonitor struct {
 //
 // The monitor updates AWS VPC route table when any changes to allocated
 // address ranges have been committed.
-// The route table id should be accessible via the WEAVE_AWS_ROUTE_TABLE_ID
-// environment variable.
-func NewAwsVPCMonitor() *AwsVPCMonitor {
+func NewAwsVPCMonitor(routeTableId string) *AwsVPCMonitor {
+	// TODO(brb) add detect mechanism for the routerTableId
 	var err error
+	session := session.New()
 	mon := &AwsVPCMonitor{}
 
+	if routeTableId == "" {
+		log.Fatalln("awsvpc: routeTableId cannot be empty")
+	}
+	mon.routeTableId = routeTableId
+
 	// Detect host (peer) Instance ID and Region
-	meta := ec2metadata.New(nil)
+	meta := ec2metadata.New(session)
 	mon.instanceId, err = meta.GetMetadata("instance-id")
 	if err != nil {
-		log.Fatalf("Cannot detect instance-id: %s\n", err)
+		log.Fatalf("awsvpc: Cannot detect instance-id: %s\n", err)
 	}
 	region, err := meta.Region()
 	if err != nil {
-		log.Fatalf("Cannot detect region: %s\n", err)
+		log.Fatalf("awsvpc: Cannot detect region: %s\n", err)
 	}
 	// Create EC2 session
-	mon.ec2 = ec2.New(session.New(), aws.NewConfig().WithRegion(region))
-	// Set Route Table ID
-	// TODO(brb) add detect mechanism for the id; if not, then move reading
-	// from env to some upper layer.
-	mon.routeTableId = os.Getenv("WEAVE_AWS_ROUTE_TABLE_ID")
-	if mon.routeTableId == "" {
-		log.Fatalln("Please set WEAVE_AWS_ROUTE_TABLE_ID")
-	}
+	mon.ec2 = ec2.New(session, aws.NewConfig().WithRegion(region))
+
+	log.Infof("awsvpc: Successfully initialized. routeTableId: %s. instanceId: %s. region: %s\n",
+		mon.routeTableId, mon.instanceId, region)
 
 	return mon
 }
@@ -60,12 +61,16 @@ func (mon *AwsVPCMonitor) HandleUpdate(oldRanges, newRanges []address.Range) {
 		// Create routes for new ranges
 		for _, addr := range group.new {
 			for _, cidr := range addr.CIDRs() {
+				log.Infof("awsvpc: Creating %s route to %s within %s route table.\n",
+					cidr, mon.instanceId, mon.routeTableId)
 				mon.createRoute(cidr.String())
 			}
 		}
 		// Delete old obsolete ranges
 		for _, addr := range group.old {
 			for _, cidr := range addr.CIDRs() {
+				log.Infof("awsvpc: Removing %s route from %s route table.\n",
+					cidr, mon.routeTableId)
 				mon.deleteRoute(cidr.String())
 			}
 		}
