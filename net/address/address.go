@@ -22,6 +22,7 @@ func (r Range) Size() Offset               { return Subtract(r.End, r.Start) }
 func (r Range) String() string             { return fmt.Sprintf("%s-%s", r.Start, r.End-1) }
 func (r Range) Overlaps(or Range) bool     { return !(r.Start >= or.End || r.End <= or.Start) }
 func (r Range) Contains(addr Address) bool { return addr >= r.Start && addr < r.End }
+func (r Range) Equals(or Range) bool       { return r.Start == or.Start && r.End == or.End }
 
 func (r Range) AsCIDRString() string {
 	prefixLen := 32

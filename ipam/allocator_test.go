@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/weaveworks/weave/common"
+	"github.com/weaveworks/weave/ipam/monitor"
 	"github.com/weaveworks/weave/net/address"
 	"github.com/weaveworks/weave/testing/gossip"
 )
@@ -203,10 +204,12 @@ func TestCancel(t *testing.T) {
 
 	router := gossip.NewTestRouter(0.0)
 
-	alloc1, subnet := makeAllocator("01:00:00:02:00:00", CIDR, 2)
+	alloc1, subnet := makeAllocator("01:00:00:02:00:00", CIDR, 2,
+		false, monitor.NewNullMonitor())
 	alloc1.SetInterfaces(router.Connect(alloc1.ourName, alloc1))
 
-	alloc2, _ := makeAllocator("02:00:00:02:00:00", CIDR, 2)
+	alloc2, _ := makeAllocator("02:00:00:02:00:00", CIDR, 2,
+		false, monitor.NewNullMonitor())
 	alloc2.SetInterfaces(router.Connect(alloc2.ourName, alloc2))
 	alloc1.claimRingForTesting(alloc1, alloc2)
 	alloc2.claimRingForTesting(alloc1, alloc2)
@@ -266,7 +269,8 @@ func TestCancelOnDied(t *testing.T) {
 	)
 
 	router := gossip.NewTestRouter(0.0)
-	alloc1, subnet := makeAllocator("01:00:00:02:00:00", CIDR, 2)
+	alloc1, subnet := makeAllocator("01:00:00:02:00:00", CIDR, 2,
+		false, monitor.NewNullMonitor())
 	alloc1.SetInterfaces(router.Connect(alloc1.ourName, alloc1))
 	alloc1.Start()
 
@@ -583,4 +587,87 @@ func TestGossipSkew(t *testing.T) {
 	if _, err := alloc1.OnGossipBroadcast(alloc2.ourName, alloc2.Encode()); err == nil {
 		t.Fail()
 	}
+}
+
+func TestMonitor(t *testing.T) {
+	const (
+		cidr       = "10.0.0.0/30"
+		container1 = "container-1"
+		container2 = "container-2"
+	)
+	monChan := make(chan rangePair, 10)
+	allocs, _, _ := makeNetworkOfAllocatorsWithMonitor(2, cidr, true, newTestMonitor(monChan))
+	defer stopNetworkOfAllocators(allocs)
+
+	_, cidr1, _ := address.ParseCIDR(cidr)
+	addr1, err := allocs[0].Allocate(container1, cidr1.HostRange(), returnFalse)
+	require.Equal(t, nil, err, "")
+	require.Equal(t, ip("10.0.0.1"), addr1, "")
+
+	// Check HandleUpdate invocations. 2 of them should be invoked only with new ranges.
+	newPeer1 := false
+	newPeer2 := false
+	for i := 0; i < 7; i++ {
+		pair := <-monChan
+		switch {
+		case !newPeer1 && pair.new[0].Equals(newRange("10.0.0.0", "10.0.0.1")):
+			newPeer1 = true
+		case !newPeer2 && pair.new[0].Equals(newRange("10.0.0.2", "10.0.0.3")):
+			newPeer2 = true
+		default:
+			continue
+		}
+
+	}
+	require.True(t, newPeer1 && newPeer2, "")
+
+	addr2, err := allocs[0].Allocate(container2, cidr1.HostRange(), returnFalse)
+	require.Equal(t, nil, err, "")
+	require.Equal(t, ip("10.0.0.2"), addr2, "")
+
+	// Check whether HandleUpdate is invoked after donation
+	newDonation1 := false
+	newDonation2 := false
+	for i := 0; i < 2; i++ {
+		pair := <-monChan
+		switch {
+		case !newDonation1 &&
+			pair.old[0].Equals(newRange("10.0.0.0", "10.0.0.1")) &&
+			pair.new[0].Equals(newRange("10.0.0.0", "10.0.0.1")) &&
+			pair.new[1].Equals(newRange("10.0.0.2", "10.0.0.2")):
+			newDonation1 = true
+		case !newDonation2 &&
+			pair.old[0].Equals(newRange("10.0.0.2", "10.0.0.3")) &&
+			pair.new[0].Equals(newRange("10.0.0.3", "10.0.0.3")):
+			newDonation2 = true
+		default:
+			continue
+		}
+	}
+	require.True(t, newDonation1 && newDonation2, "")
+}
+
+type testMonitor struct {
+	monChan chan rangePair
+}
+
+type rangePair struct {
+	old, new []address.Range
+}
+
+func newTestMonitor(monChan chan rangePair) *testMonitor {
+	return &testMonitor{monChan}
+}
+
+func (mon *testMonitor) HandleUpdate(old, new []address.Range) {
+	mon.monChan <- rangePair{old, new}
+}
+
+func newRange(start, end string) address.Range {
+	return address.NewRange(ip(start), address.Subtract(ip(end)+1, ip(start)))
+}
+
+func ip(addr string) address.Address {
+	retAddr, _ := address.ParseIP(addr)
+	return retAddr
 }

@@ -69,7 +69,7 @@ type Allocator struct {
 }
 
 // NewAllocator creates and initialises a new Allocator
-func NewAllocator(ourName mesh.PeerName, ourUID mesh.PeerUID, ourNickname string, universe address.Range, quorum uint, db db.DB, isKnownPeer func(name mesh.PeerName) bool, isCIDRAligned bool) *Allocator {
+func NewAllocator(ourName mesh.PeerName, ourUID mesh.PeerUID, ourNickname string, universe address.Range, quorum uint, db db.DB, isKnownPeer func(name mesh.PeerName) bool, isCIDRAligned bool, mon monitor.Monitor) *Allocator {
 	return &Allocator{
 		ourName:       ourName,
 		universe:      universe,
@@ -82,7 +82,7 @@ func NewAllocator(ourName mesh.PeerName, ourUID mesh.PeerUID, ourNickname string
 		dead:          make(map[string]time.Time),
 		now:           time.Now,
 		isCIDRAligned: isCIDRAligned,
-		monitor:       monitor.NewNullMonitor(),
+		monitor:       mon,
 	}
 }
 
