@@ -59,8 +59,7 @@ means that peers donate only CIDR aligned ranges.
 
 ## TODO
 
-* Store address ranges in a Radix tree to be able to efficiently minimize the number of required entries
-  in the AWS VPC route table due to CIDR alignments.
+* Store address ranges in the Radix tree and allocate CIDR aligned ranges in more smart way that it is at the moment.
 * Do CIDR aligned allocations when establishing the ring.
 * Remove unnecessary grouping of address ranges (`groupRanges` in
   `HandleUpdated`), because AWS VPC allows us to insert a route if it has
