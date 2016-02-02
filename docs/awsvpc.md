@@ -25,7 +25,7 @@ sudo WEAVE_NO_FASTDP=1 DOCKERHUB_USER=brb0 weave launch --ipalloc-range=10.20.0.
 ```
   where `ROUTE_TABLE_ID` corresponds to the id of the VPC route table (e.g. `rtb-259b9740`).
 * Assign an IP address to the weave bridge on each host by executing `sudo DOCKERHUB_USER=brb0 weave expose`
-* Enable ARP proxying on the weave bridge by issuing on each host: `echo 1 > /proc/sys/net/ipv4/conf/$BRIDGE/proxy_arp`
+* Enable ARP proxying on the weave bridge by issuing on each host: `echo 1 > /proc/sys/net/ipv4/conf/weave/proxy_arp`
 * Delete the weave route on each host: `ip route del 10.20.0.0/16 dev weave`
 * Start containers.
 
