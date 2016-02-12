@@ -173,7 +173,7 @@ func main() {
 	checkFatal(err)
 	defer db.Close()
 
-	router := weave.NewNetworkRouter(config, networkConfig, name, nickName, overlay)
+	router := weave.NewNetworkRouter(config, networkConfig, name, nickName, overlay, db)
 	Log.Println("Our name is", router.Ourself)
 
 	var dockerCli *docker.Client
@@ -223,7 +223,7 @@ func main() {
 	}
 
 	router.Start()
-	if errors := router.ConnectionMaker.InitiateConnections(peers, false); len(errors) > 0 {
+	if errors := router.SetInitialPeers(peers); len(errors) > 0 {
 		Log.Fatal(ErrorMessages(errors))
 	}
 
