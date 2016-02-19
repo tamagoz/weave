@@ -133,7 +133,6 @@ func main() {
 	}
 
 	Log.Println("Command line options:", options())
-	Log.Println("Command line peers:", peers)
 
 	if prof != "" {
 		p := *profile.CPUProfile
@@ -175,6 +174,10 @@ func main() {
 
 	router := weave.NewNetworkRouter(config, networkConfig, name, nickName, overlay, db)
 	Log.Println("Our name is", router.Ourself)
+
+	if peers, err = router.InitialPeers(peers); err != nil {
+		Log.Fatal("Unable to get initial peer set: ", err)
+	}
 
 	var dockerCli *docker.Client
 	if dockerAPI != "" {
@@ -223,7 +226,7 @@ func main() {
 	}
 
 	router.Start()
-	if errors := router.SetInitialPeers(peers); len(errors) > 0 {
+	if errors := router.InitiateConnections(peers, false); len(errors) > 0 {
 		Log.Fatal(ErrorMessages(errors))
 	}
 
