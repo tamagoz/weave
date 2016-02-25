@@ -109,7 +109,7 @@ func main() {
 	mflag.StringVar(&datapathName, []string{"-datapath"}, "", "ODP datapath name")
 	mflag.StringVar(&dbPrefix, []string{"-db-prefix"}, "weave", "pathname/prefix of filename to store data")
 
-	mflag.StringVar(&trustedSubnetStr, []string{"-trusted-subnets"}, "", "Command separated list of trusted subnets in CIDR notation")
+	mflag.StringVar(&trustedSubnetStr, []string{"-trusted-subnets"}, "", "Comma-separated list of trusted subnets in CIDR notation")
 	mflag.BoolVar(&useAWSVPC, []string{"#awsvpc", "-awsvpc"}, false, "use AWS VPC for routing")
 	mflag.StringVar(&awsRouteTableId, []string{"#aws-routetableid", "-aws-routetableid"}, "", "AWS VPC Route Table Id")
 
