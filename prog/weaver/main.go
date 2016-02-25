@@ -153,7 +153,8 @@ func main() {
 		networkConfig.PacketLogging = nopPacketLogging{}
 	}
 
-	overlay, bridge := createOverlay(datapathName, ifaceName, config.Host, config.Port, bufSzMB)
+	overlay, bridge := createOverlay(datapathName, ifaceName, config.Host, config.Port, bufSzMB,
+		useAWSVPC)
 	networkConfig.Bridge = bridge
 
 	name := peerName(routerName, bridge.Interface())
@@ -287,13 +288,16 @@ func (nopPacketLogging) LogPacket(string, weave.PacketKey) {
 func (nopPacketLogging) LogForwardPacket(string, weave.ForwardPacketKey) {
 }
 
-func createOverlay(datapathName string, ifaceName string, host string, port int, bufSzMB int) (weave.NetworkOverlay, weave.Bridge) {
+func createOverlay(datapathName string, ifaceName string, host string, port int, bufSzMB int,
+	useAWSVPC bool) (weave.NetworkOverlay, weave.Bridge) {
+
+	if useAWSVPC {
+		return weave.NullNetworkOverlay{}, weave.NullBridge{}
+	}
+
 	overlay := weave.NewOverlaySwitch()
 	var bridge weave.Bridge
 	switch {
-	case useAWSVPC:
-		overlay.Add("null", nullOverlay)
-		bridge = weave.NullBridge{}
 	case datapathName != "" && ifaceName != "":
 		Log.Fatal("At most one of --datapath and --iface must be specified.")
 	case datapathName != "":
