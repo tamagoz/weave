@@ -24,6 +24,13 @@ func (r Range) Overlaps(or Range) bool     { return !(r.Start >= or.End || r.End
 func (r Range) Contains(addr Address) bool { return addr >= r.Start && addr < r.End }
 func (r Range) Equals(or Range) bool       { return r.Start == or.Start && r.End == or.End }
 
+// TODO(mp)
+func (r Range) IsCIDR() bool {
+	//inverseMask := r.Start ^ r.End
+	//should be pow of 2 (inverseMask + 1)
+	return false
+}
+
 func (r Range) AsCIDRString() string {
 	prefixLen := 32
 	for size := r.Size(); size > 1; size = size / 2 {

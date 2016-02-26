@@ -534,6 +534,30 @@ func TestClaimForPeers(t *testing.T) {
 		ring := New(start, end, peers[0])
 		ring.ClaimForPeers(peers[:i+1])
 	}
+	// Test when # of peers > # of addr
+}
+
+func makePeers(numPeers int) []mesh.PeerName {
+	peers := make([]mesh.PeerName, numPeers)
+	for i := 0; i < numPeers; i++ {
+		peers[i] = makePeerName(i)
+	}
+	return peers
+}
+
+func TestClaimForPeersCIDRAligned(t *testing.T) {
+	peers := makePeers(3)
+	ring := New(start, end, peers[0])
+	ring.splitRange(start, end, peers)
+	expectedRanges := []address.Range{
+		address.NewRange(start, 128),                     // 10.0.0.0/25
+		address.NewRange(address.Add(start, 128), 64),    // 10.0.0.128/26
+		address.NewRange(address.Add(start, 128+64), 64), // 10.0.0.192/26
+	}
+	for i, entry := range ring.Entries {
+		r := address.NewRange(entry.Token, entry.Free)
+		require.Equal(t, expectedRanges[i], r, "")
+	}
 }
 
 type addressSlice []address.Address

@@ -155,6 +155,7 @@ func (mon *AwsVPCMonitor) deleteHostRoute(cidr string) error {
 // Helpers
 
 // groupRanges function groups overlapping address ranges.
+// TODO(mp) just find diff instead of performing the grouping.
 func groupRanges(oldRanges, newRanges []address.Range) []rangeGroup {
 	groups := make([]rangeGroup, 0)
 	// i for oldRanges, j for newRanges

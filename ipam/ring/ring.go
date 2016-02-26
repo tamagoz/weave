@@ -371,6 +371,22 @@ func (r *Ring) ClaimForPeers(peers []mesh.PeerName) {
 	r.Seeds = peers
 }
 
+func (r *Ring) ClaimForPeersCIDRAligned(peers []mesh.PeerName) {
+	// TODO(mp) assert CIDR alignment of the r.start - r.end
+}
+
+func (r *Ring) splitRange(from, to address.Address, peers []mesh.PeerName) {
+	share := address.Subtract(to, from)
+
+	if len(peers) == 1 {
+		r.Entries.insert(entry{Token: from, Peer: peers[0], Free: share + 1})
+		return
+	}
+	mid := address.Add(from, share/2)
+	r.splitRange(from, mid, peers[:len(peers)/2])
+	r.splitRange(address.Add(mid, 1), to, peers[len(peers)/2:])
+}
+
 func (r *Ring) FprintWithNicknames(w io.Writer, m map[mesh.PeerName]string) {
 	for _, entry := range r.Entries {
 		nickname, found := m[entry.Peer]
