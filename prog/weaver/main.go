@@ -38,7 +38,6 @@ type dnsConfig struct {
 }
 
 const (
-	signatureFile      = "/etc/weave/signature"
 	versionCheckPeriod = 6 * time.Hour
 )
 
@@ -56,7 +55,7 @@ func check() {
 	params := checkpoint.CheckParams{
 		Product:       "weave-net",
 		Version:       version,
-		SignatureFile: signatureFile,
+		SignatureFile: "",
 	}
 	resp, err := checkpoint.Check(&params)
 	handleResponse(resp, err)
