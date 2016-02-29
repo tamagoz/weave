@@ -344,11 +344,26 @@ func (r *Ring) AllRangeInfo() (result []RangeInfo) {
 
 // ClaimForPeers claims the entire ring for the array of peers passed
 // in.  Only works for empty rings.
-func (r *Ring) ClaimForPeers(peers []mesh.PeerName) {
+//
+// isCIDRAligned denotes whether the claimed ranges should be CIDR-aligned.
+func (r *Ring) ClaimForPeers(peers []mesh.PeerName, isCIDRAligned bool) {
 	common.Assert(r.Empty())
 	defer r.assertInvariants()
 	defer r.updateExportedVariables()
 
+	if isCIDRAligned {
+		r.createEntriesCIDR(peers)
+		return
+	} else {
+		r.createEntries(peers)
+	}
+
+	r.Seeds = peers
+}
+
+// createEntriesCIDR subdivides the [from,to) (CIDR) range to the given peers
+// and creates entries for the subranges.
+func (r *Ring) createEntries(peers []mesh.PeerName) {
 	totalSize := r.distance(r.Start, r.End)
 	share := totalSize/address.Offset(len(peers)) + 1
 	remainder := totalSize % address.Offset(len(peers))
@@ -367,24 +382,31 @@ func (r *Ring) ClaimForPeers(peers []mesh.PeerName) {
 	}
 
 	common.Assert(pos == r.End)
-
-	r.Seeds = peers
 }
 
-func (r *Ring) ClaimForPeersCIDRAligned(peers []mesh.PeerName) {
-	// TODO(mp) assert CIDR alignment of the r.start - r.end
-}
+// createEntriesCIDR does the same as createEntries, except that the subranges
+// are CIDR aligned.
+func (r *Ring) createEntriesCIDR(peers []mesh.PeerName) {
+	var fun func(from, to address.Address, peers []mesh.PeerName)
 
-func (r *Ring) splitRange(from, to address.Address, peers []mesh.PeerName) {
-	share := address.Subtract(to, from)
+	common.AssertWithMsg(
+		r.Range().IsCIDR(),
+		fmt.Sprintf("%s range is not CIDR", r.Range()))
 
-	if len(peers) == 1 {
-		r.Entries.insert(entry{Token: from, Peer: peers[0], Free: share + 1})
-		return
+	fun = func(from, to address.Address, peers []mesh.PeerName) {
+		share := address.Subtract(to, from)
+		if len(peers) == 1 {
+			r.Entries.insert(entry{Token: from, Peer: peers[0], Free: share})
+			return
+		}
+		mid := address.Add(from, share/2)
+		fun(from, mid, peers[:len(peers)/2])
+		fun(address.Add(mid, share%2), to, peers[len(peers)/2:])
 	}
-	mid := address.Add(from, share/2)
-	r.splitRange(from, mid, peers[:len(peers)/2])
-	r.splitRange(address.Add(mid, 1), to, peers[len(peers)/2:])
+	fun(r.Start, r.End, peers)
+
+	lastEntry := r.Entries[len(r.Entries)-1]
+	common.Assert(address.Add(lastEntry.Token, lastEntry.Free) == r.End)
 }
 
 func (r *Ring) FprintWithNicknames(w io.Writer, m map[mesh.PeerName]string) {

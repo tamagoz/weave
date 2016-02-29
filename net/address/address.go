@@ -24,10 +24,14 @@ func (r Range) Overlaps(or Range) bool     { return !(r.Start >= or.End || r.End
 func (r Range) Contains(addr Address) bool { return addr >= r.Start && addr < r.End }
 func (r Range) Equals(or Range) bool       { return r.Start == or.Start && r.End == or.End }
 
-// TODO(mp)
+// IsCIDR checks whether the range is CIDR.
 func (r Range) IsCIDR() bool {
-	//inverseMask := r.Start ^ r.End
-	//should be pow of 2 (inverseMask + 1)
+	start, end := r.Start, r.End-1
+	for mask := ^Address(0); mask != 0; mask <<= 1 {
+		if (mask&start == start) && (^mask|start == end) {
+			return true
+		}
+	}
 	return false
 }
 

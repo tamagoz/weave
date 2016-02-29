@@ -577,7 +577,7 @@ func (alloc *Allocator) establishRing() {
 
 func (alloc *Allocator) createRing(peers []mesh.PeerName) {
 	alloc.debugln("Paxos consensus:", peers)
-	alloc.ring.ClaimForPeers(normalizeConsensus(peers))
+	alloc.ring.ClaimForPeers(normalizeConsensus(peers), alloc.isCIDRAligned)
 	// We assume that the peer has not possessed any address ranges before
 	alloc.monitor.HandleUpdate(nil, alloc.ring.OwnedRanges())
 	alloc.gossip.GossipBroadcast(alloc.Gossip())
@@ -729,7 +729,7 @@ func (alloc *Allocator) donateSpace(r address.Range, to mesh.PeerName) {
 	defer alloc.sendRingUpdate(to)
 
 	alloc.debugln("Peer", to, "asked me for space")
-	chunk, ok := alloc.space.Donate(r, false)
+	chunk, ok := alloc.space.Donate(r, alloc.isCIDRAligned)
 	if !ok {
 		free := alloc.space.NumFreeAddressesInRange(r)
 		common.Assert(free == 0)

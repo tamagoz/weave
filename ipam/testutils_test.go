@@ -171,7 +171,7 @@ func (alloc *Allocator) claimRingForTesting(allocs ...*Allocator) {
 	for _, alloc2 := range allocs {
 		peers = append(peers, alloc2.ourName)
 	}
-	alloc.ring.ClaimForPeers(normalizeConsensus(peers))
+	alloc.ring.ClaimForPeers(normalizeConsensus(peers), false)
 	alloc.space.AddRanges(alloc.ring.OwnedRanges())
 }
 
