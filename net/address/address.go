@@ -43,7 +43,11 @@ func (r Range) AsCIDRString() string {
 		}
 		prefixLen--
 	}
-	return CIDR{Start: r.Start, PrefixLen: prefixLen}.String()
+	return CIDR{Addr: r.Start, PrefixLen: prefixLen}.String()
+}
+
+func MakeCIDR(subnet CIDR, addr Address) CIDR {
+	return CIDR{Addr: addr, PrefixLen: subnet.PrefixLen}
 }
 
 // CIDRs return list of subranges in the CIDR notation which covers completely
@@ -80,7 +84,7 @@ func (r Range) CIDRs() []CIDR {
 }
 
 type CIDR struct {
-	Start     Address
+	Addr      Address
 	PrefixLen int
 }
 
@@ -98,22 +102,22 @@ func ParseCIDR(s string) (Address, CIDR, error) {
 		return 0, CIDR{}, &net.ParseError{Type: "Non-IPv4 address not supported", Text: s}
 	} else {
 		prefixLen, _ := ipnet.Mask.Size()
-		return FromIP4(ip), CIDR{Start: FromIP4(ipnet.IP), PrefixLen: prefixLen}, nil
+		return FromIP4(ip), CIDR{Addr: FromIP4(ipnet.IP), PrefixLen: prefixLen}, nil
 	}
 }
 
 func (cidr CIDR) Size() Offset { return 1 << uint(32-cidr.PrefixLen) }
 
 func (cidr CIDR) Range() Range {
-	return NewRange(cidr.Start, cidr.Size())
+	return NewRange(cidr.Addr, cidr.Size())
 }
 func (cidr CIDR) HostRange() Range {
 	// Respect RFC1122 exclusions of first and last addresses
-	return NewRange(cidr.Start+1, cidr.Size()-2)
+	return NewRange(cidr.Addr+1, cidr.Size()-2)
 }
 
 func (cidr CIDR) String() string {
-	return fmt.Sprintf("%s/%d", cidr.Start.String(), cidr.PrefixLen)
+	return fmt.Sprintf("%s/%d", cidr.Addr.String(), cidr.PrefixLen)
 }
 
 // FromIP4 converts an ipv4 address to our integer address type
