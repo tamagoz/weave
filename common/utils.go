@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"net"
@@ -59,7 +58,7 @@ type NetDev struct {
 func FindNetDevs(processID int, match func(string) bool) ([]NetDev, error) {
 	var netDevs []NetDev
 
-	ns, err := netns.GetFromPath(fmt.Sprintf("/proc/%d/ns/net", processID))
+	ns, err := netns.GetFromPid(processID)
 	if err != nil {
 		return nil, err
 	}
