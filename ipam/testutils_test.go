@@ -130,14 +130,13 @@ func (d *mockDB) Load(_ string, _ interface{}) error { return nil }
 func (d *mockDB) Save(_ string, _ interface{}) error { return nil }
 
 func makeAllocator(name string, cidrStr string, quorum uint, isCIDRAligned bool,
-	mon monitor.Monitor) (*Allocator, address.Range) {
-
+	mon monitor.Monitor) (*Allocator, address.CIDR) {
 	peername, err := mesh.PeerNameFromString(name)
 	if err != nil {
 		panic(err)
 	}
 
-	_, cidr, err := address.ParseCIDR(cidrStr)
+	cidr, err := address.ParseCIDR(cidrStr)
 	if err != nil {
 		panic(err)
 	}
@@ -146,7 +145,7 @@ func makeAllocator(name string, cidrStr string, quorum uint, isCIDRAligned bool,
 		"nick-"+name, cidr.Range(), quorum, new(mockDB), func(mesh.PeerName) bool { return true },
 		isCIDRAligned, mon)
 
-	return alloc, cidr.HostRange()
+	return alloc, cidr
 }
 
 func makeAllocatorWithMockGossip(t *testing.T, name string, universeCIDR string,
@@ -157,7 +156,7 @@ func makeAllocatorWithMockGossip(t *testing.T, name string, universeCIDR string,
 }
 
 func makeAllocatorWithMockGossipAndMonitor(t *testing.T, name string, universeCIDR string, quorum uint,
-	isCIDRAligned bool, mon monitor.Monitor) (*Allocator, address.Range) {
+	isCIDRAligned bool, mon monitor.Monitor) (*Allocator, address.CIDR) {
 
 	alloc, subnet := makeAllocator(name, universeCIDR, quorum, isCIDRAligned, mon)
 	gossip := &mockGossipComms{T: t, name: name}
@@ -212,7 +211,7 @@ func AssertNothingSentErr(t *testing.T, ch <-chan error) {
 	}
 }
 
-func makeNetworkOfAllocators(size int, cidr string) ([]*Allocator, *gossip.TestRouter, address.Range) {
+func makeNetworkOfAllocators(size int, cidr string) ([]*Allocator, *gossip.TestRouter, address.CIDR) {
 	return makeNetworkOfAllocatorsWithMonitor(size, cidr, false, monitor.NewNullMonitor())
 }
 
@@ -221,7 +220,7 @@ func makeNetworkOfAllocatorsWithMonitor(size int, cidr string, isCIDRAligned boo
 
 	gossipRouter := gossip.NewTestRouter(0.0)
 	allocs := make([]*Allocator, size)
-	var subnet address.Range
+	var subnet address.CIDR
 
 	for i := 0; i < size; i++ {
 		var alloc *Allocator
