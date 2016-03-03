@@ -3,13 +3,12 @@
 # Before the script can be executed, the following must be done:
 
 # * Create IAM user. TODO(mp) write about policies and friends.
-# * Disable src/dst check.
 
 set -e
 set -u
 
 : ${IMAGE_ID:="ami-87564feb"} # Ubuntu 14.04 LTS (HVM) at Frankfurt DC
-: ${ZONE:="eu-central-1b"} # Frankfurt DC
+: ${ZONE:="eu-central-1b"} # Frankfurt DC # TODO(mp) change to us-east-1
 : ${INSTANCE_TYPE:="t2.micro"}
 : ${KEY_NAME:="weavenet_ci"}
 : ${SSH_KEY_FILE:="$HOME/.ssh/$KEY_NAME"}
