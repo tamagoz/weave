@@ -556,7 +556,10 @@ func TestClaimForPeersCIDRAligned(t *testing.T) {
 		r := address.NewRange(entry.Token, entry.Free)
 		require.Equal(t, expectedRanges[i], r, "")
 	}
-	// Test when # of peers > # of addr
+
+	// Test whether allocation panics due to too small ring
+	ring = New(start, start+1, peers[0])
+	require.NotPanics(t, func() { ring.ClaimForPeers(peers, true) }, "")
 }
 
 type addressSlice []address.Address

@@ -357,11 +357,10 @@ func (r *Ring) ClaimForPeers(peers []mesh.PeerName, isCIDRAligned bool) {
 	} else {
 		r.createEntries(peers)
 	}
-
 	r.Seeds = peers
 }
 
-// createEntriesCIDR subdivides the [from,to) (CIDR) range to the given peers
+// createEntriesCIDR subdivides the [from,to) (CIDR) range for the given peers
 // and creates entries for the subranges.
 func (r *Ring) createEntries(peers []mesh.PeerName) {
 	totalSize := r.distance(r.Start, r.End)
@@ -385,13 +384,20 @@ func (r *Ring) createEntries(peers []mesh.PeerName) {
 }
 
 // createEntriesCIDR does the same as createEntries, except that the subranges
-// are CIDR aligned.
+// are CIDR-aligned.
+//
+// The algo for the CIDR-aligned subdivision is based on splitting the range
+// into halves.
 func (r *Ring) createEntriesCIDR(peers []mesh.PeerName) {
 	var fun func(from, to address.Address, peers []mesh.PeerName)
 
 	common.AssertWithMsg(
 		r.Range().IsCIDR(),
 		fmt.Sprintf("%s range is not CIDR", r.Range()))
+	common.AssertWithMsg(
+		int(r.Range().Size()) >= len(peers),
+		fmt.Sprintf("%d IPs is too little for %d peers",
+			r.Range().Size(), len(peers)))
 
 	fun = func(from, to address.Address, peers []mesh.PeerName) {
 		share := address.Subtract(to, from)

@@ -728,6 +728,24 @@ func (alloc *Allocator) donateSpace(r address.Range, to mesh.PeerName) {
 	// more.
 	defer alloc.sendRingUpdate(to)
 
+	// TODO(mp) implement the following algo for CIDR=true donation:
+	// Q: how does the asking peer decide on range?
+	//
+	// globalList := []
+	// for r in ranges.cidrized().filter(askedRange) {
+	// 	if r.IsFree() {
+	// 		donate(r)
+	// 		return
+	// 	}
+	//  a, b := r.SplitIntoTwo()
+	//  if {a,b}.IsFree() {
+	//    if better {
+	//     append(globalList, (a, a.Size(), NewBlocksCount))
+	//    }
+	//	}
+	//
+	// }
+
 	alloc.debugln("Peer", to, "asked me for space")
 	chunk, ok := alloc.space.Donate(r, alloc.isCIDRAligned)
 	if !ok {
