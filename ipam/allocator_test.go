@@ -618,7 +618,8 @@ func TestSpaceRequest(t *testing.T) {
 	require.Equal(t, cidrRanges(universe), alloc1.ring.OwnedRanges(), "")
 
 	// Start a new peer
-	alloc2, _ := makeAllocator("02:00:00:02:00:00", universe, 2)
+	alloc2, _ := makeAllocator("02:00:00:02:00:00", universe, 2,
+		false, monitor.NewNullMonitor())
 	alloc2.SetInterfaces(gossipRouter.Connect(alloc2.ourName, alloc2))
 	alloc2.Start()
 	defer alloc2.Stop()
@@ -646,12 +647,13 @@ func TestMonitor(t *testing.T) {
 	allocs, _, _ := makeNetworkOfAllocatorsWithMonitor(2, cidr, true, newTestMonitor(monChan))
 	defer stopNetworkOfAllocators(allocs)
 
-	_, cidr1, _ := address.ParseCIDR(cidr)
-	addr1, err := allocs[0].Allocate(container1, cidr1.HostRange(), returnFalse)
+	cidr1, _ := address.ParseCIDR(cidr)
+	addr1, err := allocs[0].Allocate(container1, cidr1, returnFalse)
 	require.Equal(t, nil, err, "")
 	require.Equal(t, ip("10.0.0.1"), addr1, "")
 
 	// Check HandleUpdate invocations. 2 of them should be invoked only with new ranges.
+	// TODO(mp) check why there are more than 2 invocations.
 	newPeer1 := false
 	newPeer2 := false
 	for i := 0; i < 7; i++ {
@@ -667,24 +669,32 @@ func TestMonitor(t *testing.T) {
 	}
 	require.True(t, newPeer1 && newPeer2, "")
 
-	addr2, err := allocs[0].Allocate(container2, cidr1.HostRange(), returnFalse)
+	// The following allocation should trigger request for donation, because
+	// peer1 ran out of space.
+	addr2, err := allocs[0].Allocate(container2, cidr1, returnFalse)
 	require.Equal(t, nil, err, "")
 	require.Equal(t, ip("10.0.0.2"), addr2, "")
 
-	// Check whether HandleUpdate is invoked after donation
+	// Check whether HandleUpdate is invoked after donation.
 	newDonation1 := false
 	newDonation2 := false
 	for i := 0; i < 2; i++ {
 		pair := <-monChan
 		switch {
+		// TODO(mp) rewrite
 		case !newDonation1 &&
 			pair.old[0].Equals(newRange("10.0.0.0", "10.0.0.1")) &&
 			pair.new[0].Equals(newRange("10.0.0.0", "10.0.0.1")) &&
-			pair.new[1].Equals(newRange("10.0.0.2", "10.0.0.2")):
+			pair.new[1].Equals(newRange("10.0.0.2", "10.0.0.3")):
+
+			require.Equal(t, 1, len(pair.old), "")
+			require.Equal(t, 2, len(pair.new), "")
 			newDonation1 = true
 		case !newDonation2 &&
-			pair.old[0].Equals(newRange("10.0.0.2", "10.0.0.3")) &&
-			pair.new[0].Equals(newRange("10.0.0.3", "10.0.0.3")):
+			pair.old[0].Equals(newRange("10.0.0.2", "10.0.0.3")):
+
+			require.Equal(t, 1, len(pair.old), "")
+			require.Equal(t, 0, len(pair.new), "")
 			newDonation2 = true
 		default:
 			continue

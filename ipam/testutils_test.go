@@ -149,7 +149,7 @@ func makeAllocator(name string, cidrStr string, quorum uint, isCIDRAligned bool,
 }
 
 func makeAllocatorWithMockGossip(t *testing.T, name string, universeCIDR string,
-	quorum uint) (*Allocator, address.Range) {
+	quorum uint) (*Allocator, address.CIDR) {
 
 	return makeAllocatorWithMockGossipAndMonitor(t, name, universeCIDR, quorum,
 		false, monitor.NewNullMonitor())
@@ -216,7 +216,7 @@ func makeNetworkOfAllocators(size int, cidr string) ([]*Allocator, *gossip.TestR
 }
 
 func makeNetworkOfAllocatorsWithMonitor(size int, cidr string, isCIDRAligned bool,
-	mon monitor.Monitor) ([]*Allocator, *gossip.TestRouter, address.Range) {
+	mon monitor.Monitor) ([]*Allocator, *gossip.TestRouter, address.CIDR) {
 
 	gossipRouter := gossip.NewTestRouter(0.0)
 	allocs := make([]*Allocator, size)
