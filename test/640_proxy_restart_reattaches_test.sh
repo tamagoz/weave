@@ -41,6 +41,8 @@ C2=$(container_ip $HOST1 c2)
 proxy docker_on $HOST1 restart -t=1 c2
 check_attached
 
+echo "Checkpoint #0"
+
 # Restart weave router
 docker_on $HOST1 restart weave
 sleep 1
@@ -51,8 +53,11 @@ run_on $HOST1 sudo kill -KILL $(docker_on $HOST1 inspect --format='{{.State.Pid}
 sleep 1
 check_attached
 
+echo "Checkpoint #1"
+
 # Restart docker itself, using different commands for systemd- and upstart-managed.
 run_on $HOST1 sh -c "command -v systemctl >/dev/null && sudo systemctl restart docker || sudo service docker restart"
+echo "Checkpoint #2"
 wait_for_proxy $HOST1
 sleep 5 # allow for re-tries of attach
 # Re-fetch the IP since it is not retained on docker restart
