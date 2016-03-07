@@ -681,7 +681,6 @@ func TestMonitor(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		pair := <-monChan
 		switch {
-		// TODO(mp) rewrite
 		case !newDonation1 &&
 			pair.old[0].Equals(newRange("10.0.0.0", "10.0.0.1")) &&
 			pair.new[0].Equals(newRange("10.0.0.0", "10.0.0.1")) &&

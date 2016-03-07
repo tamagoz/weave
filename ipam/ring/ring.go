@@ -396,7 +396,7 @@ func (r *Ring) createEntriesCIDR(peers []mesh.PeerName) {
 		fmt.Sprintf("%s range is not CIDR", r.Range()))
 	common.AssertWithMsg(
 		int(r.Range().Size()) >= len(peers),
-		fmt.Sprintf("%d IPs is too little for %d peers",
+		fmt.Sprintf("%d IP is too little for %d peers",
 			r.Range().Size(), len(peers)))
 
 	fun = func(from, to address.Address, peers []mesh.PeerName) {
