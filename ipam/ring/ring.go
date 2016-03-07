@@ -354,9 +354,8 @@ func (r *Ring) ClaimForPeers(peers []mesh.PeerName, isCIDRAligned bool) {
 	if isCIDRAligned {
 		r.createEntriesCIDR(peers)
 		return
-	} else {
-		r.createEntries(peers)
 	}
+	r.createEntries(peers)
 	r.Seeds = peers
 }
 

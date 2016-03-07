@@ -99,7 +99,7 @@ func main() {
 		dbPrefix           string
 
 		useAWSVPC       bool
-		awsRouteTableId string
+		awsRouteTableID string
 
 		defaultDockerHost = "unix:///var/run/docker.sock"
 	)
@@ -139,7 +139,7 @@ func main() {
 
 	mflag.StringVar(&trustedSubnetStr, []string{"-trusted-subnets"}, "", "Comma-separated list of trusted subnets in CIDR notation")
 	mflag.BoolVar(&useAWSVPC, []string{"#awsvpc", "-awsvpc"}, false, "use AWS VPC for routing")
-	mflag.StringVar(&awsRouteTableId, []string{"#aws-routetableid", "-aws-routetableid"}, "", "AWS VPC Route Table Id")
+	mflag.StringVar(&awsRouteTableID, []string{"#aws-routetableid", "-aws-routetableid"}, "", "AWS VPC Route Table Id")
 
 	// crude way of detecting that we probably have been started in a
 	// container, with `weave launch` --> suppress misleading paths in
@@ -239,7 +239,7 @@ func main() {
 	}
 	if iprangeCIDR != "" {
 		allocator, defaultSubnet = createAllocator(router.Router, iprangeCIDR, ipsubnetCIDR, determineQuorum(observer, peerCount, peers), db, isKnownPeer,
-			useAWSVPC, awsRouteTableId)
+			useAWSVPC, awsRouteTableID)
 		observeContainers(allocator)
 		ids, err := dockerCli.AllContainerIDs()
 		checkFatal(err)
@@ -372,7 +372,7 @@ func parseAndCheckCIDR(cidrStr string) address.CIDR {
 }
 
 func createAllocator(router *mesh.Router, ipRangeStr string, defaultSubnetStr string, quorum uint, db db.DB, isKnownPeer func(mesh.PeerName) bool,
-	useAWSVPC bool, awsRouteTableId string) (*ipam.Allocator, address.CIDR) {
+	useAWSVPC bool, awsRouteTableID string) (*ipam.Allocator, address.CIDR) {
 	ipRange := parseAndCheckCIDR(ipRangeStr)
 	defaultSubnet := ipRange
 	if defaultSubnetStr != "" {
@@ -387,7 +387,7 @@ func createAllocator(router *mesh.Router, ipRangeStr string, defaultSubnetStr st
 	isCIDRAligned := false
 	if useAWSVPC {
 		Log.Infoln("Using AWS VPC monitor")
-		mon = monitor.NewAwsVPCMonitor(awsRouteTableId)
+		mon = monitor.NewAwsVPCMonitor(awsRouteTableID)
 		isCIDRAligned = true
 	}
 	allocator := ipam.NewAllocator(router.Ourself.Peer.Name, router.Ourself.Peer.UID, router.Ourself.Peer.NickName, ipRange.Range(), quorum, db, isKnownPeer,

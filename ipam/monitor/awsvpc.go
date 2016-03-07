@@ -20,8 +20,8 @@ var (
 
 type AwsVPCMonitor struct {
 	ec2          *ec2.EC2
-	instanceId   string
-	routeTableId string
+	instanceID   string
+	routeTableID string
 	linkIndex    int
 }
 
@@ -29,20 +29,20 @@ type AwsVPCMonitor struct {
 //
 // The monitor updates AWS VPC and host route tables when any changes to allocated
 // address ranges have been committed.
-func NewAwsVPCMonitor(routeTableId string) *AwsVPCMonitor {
+func NewAwsVPCMonitor(routeTableID string) *AwsVPCMonitor {
 	// TODO(brb) add detect mechanism for the routerTableId
 	var err error
 	session := session.New()
 	mon := &AwsVPCMonitor{}
 
-	if routeTableId == "" {
-		log.Fatalln("awsvpc: routeTableId cannot be empty")
+	if routeTableID == "" {
+		log.Fatalln("awsvpc: routeTableID cannot be empty")
 	}
-	mon.routeTableId = routeTableId
+	mon.routeTableID = routeTableID
 
 	// Detect host (peer) Instance ID and Region
 	meta := ec2metadata.New(session)
-	mon.instanceId, err = meta.GetMetadata("instance-id")
+	mon.instanceID, err = meta.GetMetadata("instance-id")
 	if err != nil {
 		log.Fatalf("awsvpc: Cannot detect instance-id: %s\n", err)
 	}
@@ -53,8 +53,8 @@ func NewAwsVPCMonitor(routeTableId string) *AwsVPCMonitor {
 	// Create EC2 session
 	mon.ec2 = ec2.New(session, aws.NewConfig().WithRegion(region))
 
-	log.Infof("awsvpc: Successfully initialized. routeTableId: %s. instanceId: %s. region: %s\n",
-		mon.routeTableId, mon.instanceId, region)
+	log.Infof("awsvpc: Successfully initialized. routeTableID: %s. instanceID: %s. region: %s\n",
+		mon.routeTableID, mon.instanceID, region)
 
 	// Detect Weave bridge link index
 	// TODO(brb) pass as an argument bridge name
@@ -74,7 +74,7 @@ func (mon *AwsVPCMonitor) HandleUpdate(oldRanges, newRanges []address.Range) {
 		for _, addr := range group.new {
 			for _, cidr := range addr.CIDRs() {
 				log.Infof("awsvpc: Creating %s route to %s within %s route table.\n",
-					cidr, mon.instanceId, mon.routeTableId)
+					cidr, mon.instanceID, mon.routeTableID)
 				out, err := mon.createVPCRoute(cidr.String())
 				if err != nil {
 					log.Fatalf("awsvpc: createVPCRoute: %s %s\n", err, out)
@@ -90,7 +90,7 @@ func (mon *AwsVPCMonitor) HandleUpdate(oldRanges, newRanges []address.Range) {
 		for _, addr := range group.old {
 			for _, cidr := range addr.CIDRs() {
 				log.Infof("awsvpc: Removing %s route from %s route table.\n",
-					cidr, mon.routeTableId)
+					cidr, mon.routeTableID)
 				out, err := mon.deleteRoute(cidr.String())
 				if err != nil {
 					log.Fatalf("awsvpc: deleteRoute: %s %s\n", err, out)
@@ -109,8 +109,8 @@ func (mon *AwsVPCMonitor) createVPCRoute(cidr string) (
 	*ec2.CreateRouteOutput, error) {
 
 	route := &ec2.CreateRouteInput{
-		RouteTableId:         &mon.routeTableId,
-		InstanceId:           &mon.instanceId,
+		RouteTableId:         &mon.routeTableID,
+		InstanceId:           &mon.instanceID,
 		DestinationCidrBlock: &cidr,
 	}
 
@@ -132,7 +132,7 @@ func (mon *AwsVPCMonitor) createHostRoute(cidr string) error {
 
 func (mon *AwsVPCMonitor) deleteRoute(cidr string) (*ec2.DeleteRouteOutput, error) {
 	route := &ec2.DeleteRouteInput{
-		RouteTableId:         &mon.routeTableId,
+		RouteTableId:         &mon.routeTableID,
 		DestinationCidrBlock: &cidr,
 	}
 
@@ -258,5 +258,6 @@ func parseIP(body string) (*net.IPNet, error) {
 		return nil, err
 	}
 	ipnet.IP = ip
+
 	return ipnet, nil
 }
