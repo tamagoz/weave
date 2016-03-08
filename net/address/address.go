@@ -8,6 +8,10 @@ import (
 	"github.com/weaveworks/weave/common"
 )
 
+const (
+	CIDRMaxPrefixLen = 32
+)
+
 var (
 	ErrCIDRTooSmall = errors.New("CIDR is too small")
 )
@@ -61,14 +65,11 @@ func (r Range) CIDRs() []CIDR {
 	start, end := r.Start, r.End-1
 	cidrList := make([]CIDR, 0)
 
-	const (
-		fullMask     = ^Address(0)
-		maxPrefixLen = 32
-	)
+	const fullMask = ^Address(0)
 
 	for end >= start {
 		mask := fullMask
-		prefixLen := maxPrefixLen
+		prefixLen := CIDRMaxPrefixLen
 		for mask > 0 {
 			tmpMask := mask << 1
 			if (start&tmpMask) != start || (start|^tmpMask) > end {
@@ -128,14 +129,14 @@ func (cidr CIDR) HostRange() Range {
 }
 
 // Halve splits cidr into two CIDRs of the equal size.
-func (cidr CIDR) Halve() (CIDR, CIDR, error) {
-	size := cidr.Size()
-	if size < 2 {
-		return CIDR{}, CIDR{}, ErrCIDRTooSmall
+// Returns false if cidr is to small, i.e. /32.
+func (cidr CIDR) Halve() (CIDR, CIDR, bool) {
+	if cidr.PrefixLen == CIDRMaxPrefixLen {
+		return CIDR{}, CIDR{}, false
 	}
 
 	return CIDR{cidr.Addr, cidr.PrefixLen + 1},
-		CIDR{Add(cidr.Addr, size/2), cidr.PrefixLen + 1}, nil
+		CIDR{Add(cidr.Addr, cidr.Size()/2), cidr.PrefixLen + 1}, true
 }
 
 func (cidr CIDR) String() string {
