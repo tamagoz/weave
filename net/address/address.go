@@ -1,10 +1,15 @@
 package address
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
 	"github.com/weaveworks/weave/common"
+)
+
+var (
+	ErrCIDRTooSmall = errors.New("CIDR is too small")
 )
 
 // Using 32-bit integer to represent IPv4 address
@@ -116,9 +121,21 @@ func (cidr CIDR) Size() Offset { return 1 << uint(32-cidr.PrefixLen) }
 func (cidr CIDR) Range() Range {
 	return NewRange(cidr.Addr, cidr.Size())
 }
+
 func (cidr CIDR) HostRange() Range {
 	// Respect RFC1122 exclusions of first and last addresses
 	return NewRange(cidr.Addr+1, cidr.Size()-2)
+}
+
+// Halve splits cidr into two CIDRs of the equal size.
+func (cidr CIDR) Halve() (CIDR, CIDR, error) {
+	size := cidr.Size()
+	if size < 2 {
+		return CIDR{}, CIDR{}, ErrCIDRTooSmall
+	}
+
+	return CIDR{cidr.Addr, cidr.PrefixLen + 1},
+		CIDR{Add(cidr.Addr, size/2), cidr.PrefixLen + 1}, nil
 }
 
 func (cidr CIDR) String() string {
@@ -166,6 +183,20 @@ func Min(a, b Offset) Offset {
 		return b
 	}
 	return a
+}
+
+func MinAddress(a, b Address) Address {
+	if a > b {
+		return b
+	}
+	return a
+}
+
+func MaxAddress(a, b Address) Address {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func (addr Address) Reverse() Address {
