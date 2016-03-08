@@ -93,21 +93,6 @@ func TestLowlevel(t *testing.T) {
 	require.True(t, !ok, "donate should fail")
 }
 
-func TestSpaceAllocateBroadcastAddr(t *testing.T) {
-	var (
-		start = ip("10.0.0.0")
-		size  = address.Offset(256)
-	)
-	space := makeSpace(start, size)
-	r := address.NewRange(start, size)
-	for i := 0; i < 255; i++ {
-		space.Allocate(r)
-	}
-	t.Log(space)
-	_, addr := space.Allocate(r)
-	t.Log(addr)
-}
-
 func TestSpaceAllocate(t *testing.T) {
 	const (
 		testAddr1   = "10.0.3.4"

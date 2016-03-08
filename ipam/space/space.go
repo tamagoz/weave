@@ -97,6 +97,13 @@ func (s *Space) NumFreeAddressesInRange(r address.Range) address.Offset {
 	return res
 }
 
+// IsFree checks whether there are no claimed addresses within
+// the given address range.
+func (s *Space) IsFree(r address.Range) bool {
+	// TODO(mp) Add unit test
+	return r.Size() == s.NumFreeAddressesInRange(r)
+}
+
 func (s *Space) Free(addr address.Address) error {
 	if !contains(s.ours, addr) {
 		return fmt.Errorf("Address %v is not ours", addr)

@@ -15,6 +15,7 @@ import (
 	"github.com/weaveworks/mesh"
 
 	"github.com/weaveworks/weave/common"
+	"github.com/weaveworks/weave/ipam/space"
 	"github.com/weaveworks/weave/net/address"
 )
 
@@ -433,6 +434,41 @@ func (r *Ring) createEntriesCIDR(peers []mesh.PeerName) {
 
 	lastEntry := r.Entries[len(r.Entries)-1]
 	common.Assert(address.Add(lastEntry.Token, lastEntry.Free) == r.End)
+}
+
+// TODO(mp) Bad naming, because space will update its state...
+func (r *Ring) FindDonation(reqRange address.Range, isCIDRAligned bool, mySpace *space.Space) (
+	address.Range, bool) {
+
+	// TODO(mp) The flow is getting messed up here... Fix it.
+	if !isCIDRAligned {
+		// TODO(mp) Remove isCIDRAligned from space.Donate args
+		return mySpace.Donate(reqRange, isCIDRAligned)
+	}
+
+	// 1) Check whether there exists any free CIDR block. If yes, return it.
+	var freeCIDRs []address.CIDR
+	cidrs := r.OwnedCIDRRanges()
+	for _, cidr := range cidrs {
+		if mySpace.IsFree(reqRange) {
+			freeCIDRs = append(freeCIDRs, cidr)
+		}
+	}
+	// TODO(mp) Sort or maybe just return the first found range to avoid expensive
+	// iteration.
+	if len(freeCIDRs) > 0 {
+		cidr := freeCIDRs[0]
+		// Donate first half
+		if cidr.Size() != 1 {
+			cidr.PrefixLen++
+		}
+		return cidr.Range(), true
+	}
+
+	// 2) Do BFS by splitting the ranges.
+	// TODO(mp)
+
+	return address.Range{}, false
 }
 
 func (r *Ring) FprintWithNicknames(w io.Writer, m map[mesh.PeerName]string) {
