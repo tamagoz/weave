@@ -800,3 +800,28 @@ func (es entries) String() string {
 	fmt.Fprintf(&buffer, "]")
 	return buffer.String()
 }
+
+func TestOwnedCIDRRanges(t *testing.T) {
+	ring := New(start, end+1, peer1name) // 10.0.0.0/24
+	entries := []entry{
+		{ip("10.0.0.128"), peer2name, 0, 128 + 16},
+		{ip("10.0.0.16"), peer1name, 0, 1},
+		{ip("10.0.0.17"), peer2name, 0, 47},
+		{ip("10.0.0.64"), peer1name, 0, 64},
+	}
+	// peer1: [10.0.0.16-10.0.0.16 10.0.0.64-10.0.0.127]
+	// peer2: [10.0.0.128-10.0.0.15 10.0.0.17-10.0.0.63]
+	for _, e := range entries {
+		ring.Entries.insert(e)
+	}
+
+	cidrs := ring.OwnedCIDRRanges()
+	require.Len(t, cidrs, 2, "")
+	require.Equal(t, "10.0.0.16/32", cidrs[0].String(), "")
+	require.Equal(t, "10.0.0.64/26", cidrs[1].String(), "")
+}
+
+func ip(s string) address.Address {
+	addr, _ := address.ParseIP(s)
+	return addr
+}

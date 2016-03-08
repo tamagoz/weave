@@ -323,6 +323,27 @@ func (r *Ring) OwnedRanges() (result []address.Range) {
 	return r.splitRangesOverZero(result)
 }
 
+// OwnedCIDRRanges returns slice of ordered CIDRs owned by this peer.
+// The function handles wraparounds.
+func (r *Ring) OwnedCIDRRanges() (result []address.CIDR) {
+	var mergedRanges []address.Range
+
+	for _, r := range r.OwnedRanges() {
+		if i := len(mergedRanges) - 1; i >= 0 && mergedRanges[i].End == r.Start {
+			mergedRanges[i].End = r.End
+		} else {
+			mergedRanges = append(mergedRanges, r)
+		}
+	}
+
+	// TODO(mp) possible optimization: handle everything in a single loop.
+	for _, r := range mergedRanges {
+		result = append(result, r.CIDRs()...)
+	}
+
+	return result
+}
+
 // For printing status
 type RangeInfo struct {
 	Peer mesh.PeerName
