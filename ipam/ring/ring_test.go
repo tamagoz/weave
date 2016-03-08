@@ -11,7 +11,7 @@ import (
 	"github.com/weaveworks/mesh"
 
 	"github.com/weaveworks/weave/common"
-	"github.com/weaveworks/weave/ipam/space"
+	_ "github.com/weaveworks/weave/ipam/space"
 	"github.com/weaveworks/weave/net/address"
 )
 
@@ -802,7 +802,7 @@ func (es entries) String() string {
 	return buffer.String()
 }
 
-func TestOwnedCIDRRanges(t *testing.T) {
+func TestOwnedCIDRRangesWithinRange(t *testing.T) {
 	ring := New(start, end+1, peer1name) // 10.0.0.0/24
 	entries := []entry{
 		{ip("10.0.0.128"), peer2name, 0, 128 + 16},
@@ -814,10 +814,16 @@ func TestOwnedCIDRRanges(t *testing.T) {
 	// peer2: [10.0.0.128-10.0.0.15 10.0.0.17-10.0.0.63]
 	insertEntries(ring, entries)
 
-	cidrs := ring.OwnedCIDRRanges()
+	cidrs := ring.OwnedCIDRRangesWithinRange(address.Range{start, end + 1})
 	require.Len(t, cidrs, 2, "")
 	require.Equal(t, "10.0.0.16/32", cidrs[0].String(), "")
 	require.Equal(t, "10.0.0.64/26", cidrs[1].String(), "")
+
+	cidrs = ring.OwnedCIDRRangesWithinRange(
+		address.Range{ip("10.0.0.16"), ip("10.0.0.66")})
+	require.Len(t, cidrs, 2, "")
+	require.Equal(t, "10.0.0.16/32", cidrs[0].String(), "")
+	require.Equal(t, "10.0.0.64/31", cidrs[1].String(), "")
 }
 
 func ip(s string) address.Address {
@@ -831,16 +837,16 @@ func insertEntries(ring *Ring, entries []entry) {
 	}
 }
 
-func TestFindDonation(t *testing.T) {
-	ring0 := New(start, end+1, peer1name) // 10.0.0.0/24
-	ring0.Entries.insert(entry{ip("10.0.0.0"), peer1name, 0, 256})
-	space0 := space.New()
-	space0.Add(ip("10.0.0.0"), 256)
-
-	range0 := address.Range{start, end + 1}
-	chunk0, ok := ring0.FindDonation(range0, true, space0)
-	require.Equal(t, chunk0, address.Range{start, ip("10.0.0.128")})
-	require.True(t, ok, "")
-
-	//space0.Claim(ip("10.0.0.1"))
-}
+//func TestFindDonation(t *testing.T) {
+//	ring0 := New(start, end+1, peer1name) // 10.0.0.0/24
+//	ring0.Entries.insert(entry{ip("10.0.0.0"), peer1name, 0, 256})
+//	space0 := space.New()
+//	space0.Add(ip("10.0.0.0"), 256)
+//
+//	range0 := address.Range{start, end + 1}
+//	chunk0, ok := ring0.FindDonation(range0, true, space0)
+//	require.Equal(t, chunk0, address.Range{start, ip("10.0.0.128")})
+//	require.True(t, ok, "")
+//
+//	//space0.Claim(ip("10.0.0.1"))
+//}

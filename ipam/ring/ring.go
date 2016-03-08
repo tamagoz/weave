@@ -345,6 +345,37 @@ func (r *Ring) OwnedCIDRRanges() (result []address.CIDR) {
 	return result
 }
 
+func (r *Ring) OwnedCIDRRangesWithinRange(req address.Range) (
+	result []address.CIDR) {
+
+	// TODO(mp) rename
+	var mergedRanges []address.Range
+	for _, curr := range r.OwnedRanges() {
+		if req.End <= curr.Start {
+			break
+		}
+		if req.Start >= curr.End {
+			continue
+		}
+		start := address.MaxAddress(req.Start, curr.Start)
+		end := address.MinAddress(req.End, curr.End)
+
+		// ring.OwnedRanges() might return non-merged ranges, so we need to do
+		// it here:
+		if last := len(mergedRanges) - 1; last >= 0 && mergedRanges[last].End == start {
+			mergedRanges[last].End = end
+		} else {
+			mergedRanges = append(mergedRanges, address.Range{start, end})
+		}
+	}
+
+	for _, r := range mergedRanges {
+		result = append(result, r.CIDRs()...)
+	}
+
+	return result
+}
+
 // For printing status
 type RangeInfo struct {
 	Peer mesh.PeerName
@@ -440,6 +471,8 @@ func (r *Ring) createEntriesCIDR(peers []mesh.PeerName) {
 func (r *Ring) FindDonation(reqRange address.Range, isCIDRAligned bool, mySpace *space.Space) (
 	address.Range, bool) {
 
+	// TODO(mp) Filter ranges!!!
+
 	// TODO(mp) The flow is getting messed up here... Fix it.
 	if !isCIDRAligned {
 		// TODO(mp) Remove isCIDRAligned from space.Donate args
@@ -465,8 +498,15 @@ func (r *Ring) FindDonation(reqRange address.Range, isCIDRAligned bool, mySpace 
 		return cidr.Range(), true
 	}
 
-	// 2) Do BFS by splitting the ranges.
-	// TODO(mp)
+	/*
+		// 2) Do BFS by splitting the ranges.
+		var nextLevelCIDR []address.CIDR
+		for _, cidr := range cidrs {
+			// TODO(mp) divide CIDR
+			a, b, ok := cidr.Halve()
+			if mySpace.IsFree(
+		}
+	*/
 
 	return address.Range{}, false
 }
