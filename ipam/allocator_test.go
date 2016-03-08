@@ -684,16 +684,19 @@ func TestMonitor(t *testing.T) {
 		case !newDonation1 &&
 			pair.old[0].Equals(newRange("10.0.0.0", "10.0.0.1")) &&
 			pair.new[0].Equals(newRange("10.0.0.0", "10.0.0.1")) &&
-			pair.new[1].Equals(newRange("10.0.0.2", "10.0.0.3")):
+			pair.new[1].Equals(newRange("10.0.0.3", "10.0.0.3")):
+			// peer1
 
 			require.Equal(t, 1, len(pair.old), "")
 			require.Equal(t, 2, len(pair.new), "")
 			newDonation1 = true
 		case !newDonation2 &&
-			pair.old[0].Equals(newRange("10.0.0.2", "10.0.0.3")):
+			pair.old[0].Equals(newRange("10.0.0.2", "10.0.0.3")) &&
+			pair.new[0].Equals(newRange("10.0.0.2", "10.0.0.2")):
+			// peer2
 
 			require.Equal(t, 1, len(pair.old), "")
-			require.Equal(t, 0, len(pair.new), "")
+			require.Equal(t, 1, len(pair.new), "")
 			newDonation2 = true
 		default:
 			continue

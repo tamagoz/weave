@@ -172,9 +172,15 @@ func (s *Space) Donate(r address.Range, isCIDRAligned bool) (address.Range, bool
 		}
 	}
 
+	// TODO(mp) use Remove
 	s.ours = subtract(s.ours, biggest.Start, biggest.End)
 	s.free = subtract(s.free, biggest.Start, biggest.End)
 	return biggest, true
+}
+
+func (s *Space) Remove(r address.Range) {
+	s.ours = subtract(s.ours, r.Start, r.End)
+	s.free = subtract(s.free, r.Start, r.End)
 }
 
 func firstGreater(a []address.Address, x address.Address) int {

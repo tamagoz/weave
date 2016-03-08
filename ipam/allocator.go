@@ -772,6 +772,10 @@ func (alloc *Allocator) donateSpace(r address.Range, to mesh.PeerName) {
 		alloc.sendSpaceRequestDenied(to, r)
 		return
 	}
+	// TODO(mp) temp dirty hack
+	if ok && alloc.isCIDRAligned {
+		alloc.space.Remove(chunk)
+	}
 	alloc.debugln("Giving range", chunk, "to", to)
 	oldRanges := alloc.ring.OwnedRanges()
 	alloc.ring.GrantRangeToHost(chunk.Start, chunk.End, to)
