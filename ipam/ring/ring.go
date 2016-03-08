@@ -471,8 +471,8 @@ func (r *Ring) createEntriesCIDR(peers []mesh.PeerName) {
 func (r *Ring) FindDonation(reqRange address.Range, isCIDRAligned bool, mySpace *space.Space) (
 	address.Range, bool) {
 
-	// TODO(mp) Filter ranges!!!
-
+	// TODO(mp) update space or maybe move this function to space.go, but pass
+	// OwnedCIDRRangesWithinRange as a param.
 	// TODO(mp) The flow is getting messed up here... Fix it.
 	if !isCIDRAligned {
 		// TODO(mp) Remove isCIDRAligned from space.Donate args
@@ -481,32 +481,53 @@ func (r *Ring) FindDonation(reqRange address.Range, isCIDRAligned bool, mySpace 
 
 	// 1) Check whether there exists any free CIDR block. If yes, return it.
 	var freeCIDRs []address.CIDR
-	cidrs := r.OwnedCIDRRanges()
+	cidrs := r.OwnedCIDRRangesWithinRange(reqRange)
 	for _, cidr := range cidrs {
-		if mySpace.IsFree(reqRange) {
+		if mySpace.IsFree(cidr.Range()) {
 			freeCIDRs = append(freeCIDRs, cidr)
 		}
 	}
-	// TODO(mp) Sort or maybe just return the first found range to avoid expensive
-	// iteration.
+	// Return the biggest range divided by 2
 	if len(freeCIDRs) > 0 {
-		cidr := freeCIDRs[0]
-		// Donate first half
-		if cidr.Size() != 1 {
-			cidr.PrefixLen++
+		biggestCIDR := freeCIDRs[0]
+		for _, cidr := range freeCIDRs[1:] {
+			if biggestCIDR.Size() < cidr.Size() {
+				biggestCIDR = cidr
+			}
 		}
-		return cidr.Range(), true
+		// Donate second half
+		if _, second, ok := biggestCIDR.Halve(); ok {
+			biggestCIDR = second
+		}
+		return biggestCIDR.Range(), true
 	}
 
-	/*
-		// 2) Do BFS by splitting the ranges.
-		var nextLevelCIDR []address.CIDR
+	// No free CIDR blocks, so do BFS to find such.
+	// Return once we found a suitable range.
+	for len(cidrs) != 0 {
+		var next []address.CIDR
 		for _, cidr := range cidrs {
-			// TODO(mp) divide CIDR
 			a, b, ok := cidr.Halve()
-			if mySpace.IsFree(
+			if !ok {
+				// We can ignore this cidr of /32 because we have validated it
+				// in prev level iteration.
+				continue
+			}
+			if mySpace.IsFree(a.Range()) {
+				return a.Range(), true
+			}
+			if mySpace.IsFree(b.Range()) {
+				return b.Range(), true
+			}
+			if !mySpace.IsFull(a.Range()) {
+				next = append(next, a)
+			}
+			if !mySpace.IsFull(b.Range()) {
+				next = append(next, b)
+			}
 		}
-	*/
+		cidrs = next
+	}
 
 	return address.Range{}, false
 }

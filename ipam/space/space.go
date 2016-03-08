@@ -104,6 +104,12 @@ func (s *Space) IsFree(r address.Range) bool {
 	return r.Size() == s.NumFreeAddressesInRange(r)
 }
 
+// TODO(mp) Comment
+func (s *Space) IsFull(r address.Range) bool {
+	// TODO(mp) Add unit test
+	return s.NumFreeAddressesInRange(r) == 0
+}
+
 func (s *Space) Free(addr address.Address) error {
 	if !contains(s.ours, addr) {
 		return fmt.Errorf("Address %v is not ours", addr)

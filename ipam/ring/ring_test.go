@@ -11,7 +11,7 @@ import (
 	"github.com/weaveworks/mesh"
 
 	"github.com/weaveworks/weave/common"
-	_ "github.com/weaveworks/weave/ipam/space"
+	"github.com/weaveworks/weave/ipam/space"
 	"github.com/weaveworks/weave/net/address"
 )
 
@@ -837,16 +837,24 @@ func insertEntries(ring *Ring, entries []entry) {
 	}
 }
 
-//func TestFindDonation(t *testing.T) {
-//	ring0 := New(start, end+1, peer1name) // 10.0.0.0/24
-//	ring0.Entries.insert(entry{ip("10.0.0.0"), peer1name, 0, 256})
-//	space0 := space.New()
-//	space0.Add(ip("10.0.0.0"), 256)
-//
-//	range0 := address.Range{start, end + 1}
-//	chunk0, ok := ring0.FindDonation(range0, true, space0)
-//	require.Equal(t, chunk0, address.Range{start, ip("10.0.0.128")})
-//	require.True(t, ok, "")
-//
-//	//space0.Claim(ip("10.0.0.1"))
-//}
+func TestFindDonation(t *testing.T) {
+	ring := New(start, end+1, peer1name) // 10.0.0.0/24
+	ring.Entries.insert(entry{ip("10.0.0.0"), peer1name, 0, 256})
+	space1 := space.New()
+	space1.Add(ip("10.0.0.0"), 256)
+
+	within := address.Range{start, end + 1}
+	chunk1, ok := ring.FindDonation(within, true, space1)
+	require.True(t, ok, "")
+	require.Equal(t, address.Range{ip("10.0.0.128"), end + 1}, chunk1)
+
+	space1.Claim(ip("10.0.0.1"))
+	chunk2, ok := ring.FindDonation(within, true, space1)
+	require.True(t, ok, "")
+	require.Equal(t, address.Range{ip("10.0.0.128"), end + 1}, chunk2)
+
+	space1.Claim(ip("10.0.0.128"))
+	chunk3, ok := ring.FindDonation(within, true, space1)
+	require.True(t, ok, "")
+	require.Equal(t, address.Range{ip("10.0.0.64"), ip("10.0.0.128")}, chunk3)
+}
