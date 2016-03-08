@@ -150,7 +150,7 @@ func (s *Space) biggestCIDRFreeRange(r address.Range) (biggest address.CIDR) {
 }
 
 func (s *Space) Donate(r address.Range, isCIDRAligned bool,
-	cidrBlocks func() []address.CIDR) (address.Range, bool) {
+	ownedCIDRRanges func() []address.CIDR) (address.Range, bool) {
 
 	var chunk address.Range
 	var ok bool
@@ -158,7 +158,7 @@ func (s *Space) Donate(r address.Range, isCIDRAligned bool,
 	if !isCIDRAligned {
 		chunk, ok = s.findNonCIDRDonation(r)
 	} else {
-		chunk, ok = s.findCIDRDonation(cidrBlocks())
+		chunk, ok = s.findCIDRDonation(ownedCIDRRanges())
 	}
 
 	if ok {
