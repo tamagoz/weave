@@ -762,7 +762,8 @@ func (alloc *Allocator) donateSpace(r address.Range, to mesh.PeerName) {
 	defer alloc.sendRingUpdate(to)
 
 	alloc.debugln("Peer", to, "asked me for space")
-	chunk, ok := alloc.ring.FindDonation(r, alloc.isCIDRAligned, &alloc.space)
+	chunk, ok := alloc.space.Donate(r, alloc.isCIDRAligned,
+		func() []address.CIDR { return alloc.ring.OwnedCIDRRangesWithinRange(r) })
 	if !ok {
 		free := alloc.space.NumFreeAddressesInRange(r)
 		common.Assert(free == 0)
@@ -771,10 +772,6 @@ func (alloc *Allocator) donateSpace(r address.Range, to mesh.PeerName) {
 		// down-level peers will ignore this and still get the ring update.
 		alloc.sendSpaceRequestDenied(to, r)
 		return
-	}
-	// TODO(mp) temp dirty hack
-	if ok && alloc.isCIDRAligned {
-		alloc.space.Remove(chunk)
 	}
 	alloc.debugln("Giving range", chunk, "to", to)
 	oldRanges := alloc.ring.OwnedRanges()

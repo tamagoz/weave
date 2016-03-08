@@ -15,7 +15,6 @@ import (
 	"github.com/weaveworks/mesh"
 
 	"github.com/weaveworks/weave/common"
-	"github.com/weaveworks/weave/ipam/space"
 	"github.com/weaveworks/weave/net/address"
 )
 
@@ -324,27 +323,6 @@ func (r *Ring) OwnedRanges() (result []address.Range) {
 	return r.splitRangesOverZero(result)
 }
 
-// OwnedCIDRRanges returns slice of ordered CIDRs owned by this peer.
-// The function handles wraparounds.
-func (r *Ring) OwnedCIDRRanges() (result []address.CIDR) {
-	var mergedRanges []address.Range
-
-	for _, r := range r.OwnedRanges() {
-		if i := len(mergedRanges) - 1; i >= 0 && mergedRanges[i].End == r.Start {
-			mergedRanges[i].End = r.End
-		} else {
-			mergedRanges = append(mergedRanges, r)
-		}
-	}
-
-	// TODO(mp) possible optimization: handle everything in a single loop.
-	for _, r := range mergedRanges {
-		result = append(result, r.CIDRs()...)
-	}
-
-	return result
-}
-
 func (r *Ring) OwnedCIDRRangesWithinRange(req address.Range) (
 	result []address.CIDR) {
 
@@ -465,71 +443,6 @@ func (r *Ring) createEntriesCIDR(peers []mesh.PeerName) {
 
 	lastEntry := r.Entries[len(r.Entries)-1]
 	common.Assert(address.Add(lastEntry.Token, lastEntry.Free) == r.End)
-}
-
-// TODO(mp) Bad naming, because space will update its state...
-func (r *Ring) FindDonation(reqRange address.Range, isCIDRAligned bool, mySpace *space.Space) (
-	address.Range, bool) {
-
-	// TODO(mp) update space or maybe move this function to space.go, but pass
-	// OwnedCIDRRangesWithinRange as a param.
-	// TODO(mp) The flow is getting messed up here... Fix it.
-	if !isCIDRAligned {
-		// TODO(mp) Remove isCIDRAligned from space.Donate args
-		return mySpace.Donate(reqRange, isCIDRAligned)
-	}
-
-	// 1) Check whether there exists any free CIDR block. If yes, return it.
-	var freeCIDRs []address.CIDR
-	cidrs := r.OwnedCIDRRangesWithinRange(reqRange)
-	for _, cidr := range cidrs {
-		if mySpace.IsFree(cidr.Range()) {
-			freeCIDRs = append(freeCIDRs, cidr)
-		}
-	}
-	// Return the biggest range divided by 2
-	if len(freeCIDRs) > 0 {
-		biggestCIDR := freeCIDRs[0]
-		for _, cidr := range freeCIDRs[1:] {
-			if biggestCIDR.Size() < cidr.Size() {
-				biggestCIDR = cidr
-			}
-		}
-		// Donate second half
-		if _, second, ok := biggestCIDR.Halve(); ok {
-			biggestCIDR = second
-		}
-		return biggestCIDR.Range(), true
-	}
-
-	// No free CIDR blocks, so do BFS to find such.
-	// Return once we found a suitable range.
-	for len(cidrs) != 0 {
-		var next []address.CIDR
-		for _, cidr := range cidrs {
-			a, b, ok := cidr.Halve()
-			if !ok {
-				// We can ignore this cidr of /32 because we have validated it
-				// in prev level iteration.
-				continue
-			}
-			if mySpace.IsFree(a.Range()) {
-				return a.Range(), true
-			}
-			if mySpace.IsFree(b.Range()) {
-				return b.Range(), true
-			}
-			if !mySpace.IsFull(a.Range()) {
-				next = append(next, a)
-			}
-			if !mySpace.IsFull(b.Range()) {
-				next = append(next, b)
-			}
-		}
-		cidrs = next
-	}
-
-	return address.Range{}, false
 }
 
 func (r *Ring) FprintWithNicknames(w io.Writer, m map[mesh.PeerName]string) {

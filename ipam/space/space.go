@@ -149,33 +149,93 @@ func (s *Space) biggestCIDRFreeRange(r address.Range) (biggest address.CIDR) {
 	return
 }
 
-func (s *Space) Donate(r address.Range, isCIDRAligned bool) (address.Range, bool) {
-	var biggest address.Range
+func (s *Space) Donate(r address.Range, isCIDRAligned bool,
+	cidrBlocks func() []address.CIDR) (address.Range, bool) {
+
+	var chunk address.Range
+	var ok bool
 
 	if !isCIDRAligned {
-		biggest = s.biggestFreeRange(r)
-
-		if biggest.Size() == 0 {
-			return address.Range{}, false
-		}
-
-		// Donate half of that biggest free range. Note size/2 rounds down, so
-		// the resulting donation size rounds up, and in particular can't be empty.
-		biggest.Start = address.Add(biggest.Start, biggest.Size()/2)
+		chunk, ok = s.findNonCIDRDonation(r)
 	} else {
-		// Donate the biggest CIDR free range
-		biggestCIDR := s.biggestCIDRFreeRange(r)
-		biggest = biggestCIDR.Range()
-
-		if biggest.Size() == 0 {
-			return address.Range{}, false
-		}
+		chunk, ok = s.findCIDRDonation(cidrBlocks())
 	}
 
-	// TODO(mp) use Remove
-	s.ours = subtract(s.ours, biggest.Start, biggest.End)
-	s.free = subtract(s.free, biggest.Start, biggest.End)
+	if ok {
+		s.Remove(chunk)
+	}
+
+	return chunk, ok
+}
+
+func (s *Space) findNonCIDRDonation(r address.Range) (address.Range, bool) {
+	var biggest address.Range
+
+	biggest = s.biggestFreeRange(r)
+
+	if biggest.Size() == 0 {
+		return address.Range{}, false
+	}
+
+	// Donate half of that biggest free range. Note size/2 rounds down, so
+	// the resulting donation size rounds up, and in particular can't be empty.
+	biggest.Start = address.Add(biggest.Start, biggest.Size()/2)
+
 	return biggest, true
+}
+
+// TODO(mp) the docs
+func (s *Space) findCIDRDonation(cidrs []address.CIDR) (address.Range, bool) {
+	// 1) Check whether there exists any free CIDR block. If yes, return it.
+	var freeCIDRs []address.CIDR
+	for _, cidr := range cidrs {
+		if s.IsFree(cidr.Range()) {
+			freeCIDRs = append(freeCIDRs, cidr)
+		}
+	}
+	// Return the biggest range divided by 2
+	if len(freeCIDRs) > 0 {
+		biggestCIDR := freeCIDRs[0]
+		for _, cidr := range freeCIDRs[1:] {
+			if biggestCIDR.Size() < cidr.Size() {
+				biggestCIDR = cidr
+			}
+		}
+		// Donate second half
+		if _, second, ok := biggestCIDR.Halve(); ok {
+			biggestCIDR = second
+		}
+		return biggestCIDR.Range(), true
+	}
+
+	// No free CIDR blocks, so do BFS to find such.
+	// Return once we found a suitable range.
+	for len(cidrs) != 0 {
+		var next []address.CIDR
+		for _, cidr := range cidrs {
+			a, b, ok := cidr.Halve()
+			if !ok {
+				// We can ignore this cidr of /32 because we have validated it
+				// in prev level iteration.
+				continue
+			}
+			if s.IsFree(a.Range()) {
+				return a.Range(), true
+			}
+			if s.IsFree(b.Range()) {
+				return b.Range(), true
+			}
+			if !s.IsFull(a.Range()) {
+				next = append(next, a)
+			}
+			if !s.IsFull(b.Range()) {
+				next = append(next, b)
+			}
+		}
+		cidrs = next
+	}
+
+	return address.Range{}, false
 }
 
 func (s *Space) Remove(r address.Range) {
