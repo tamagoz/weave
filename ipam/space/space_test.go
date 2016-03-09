@@ -1,8 +1,6 @@
 package space
 
 import (
-	"fmt"
-	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -269,6 +267,88 @@ func TestDonateHard(t *testing.T) {
 	require.Equal(t, expected, spaceset)
 }
 
+func TestDonateCIDR(t *testing.T) {
+	var within address.Range
+	var cidrs []address.CIDR
+
+	space1 := New()
+	space1.Add(ip("10.0.0.0"), 128)
+
+	// space1 (10.0.0.0/25):
+	//  +-------------------------------------------------+
+	//  |                       Free					  |
+	//  +-------------------------------------------------+
+	//  .0                                                .128
+
+	within = addrRange("10.0.0.0", "10.0.1.0")
+	cidrs = []address.CIDR{cidr("10.0.0.0/25")}
+	space1.Claim(ip("10.0.0.1"))
+	space1.Claim(ip("10.0.0.97"))
+	chunk1, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
+	require.True(t, ok, "")
+	require.Equal(t, addrRange("10.0.0.32", "10.0.0.64"), chunk1)
+
+	// space1 (10.0.0.0/25):
+	//  +-------------------------------------------------+
+	//  |  |A|        |Donated|     |A|     Free          |
+	//  +-------------------------------------------------+
+	//  .0 .1         .32   .64     .97					  .128
+	//
+	// (A stands for Allocated By Us)
+
+	space1.Claim(ip("10.0.0.2"))
+	within = addrRange("10.0.0.0", "10.0.0.4")
+	cidrs = []address.CIDR{cidr("10.0.0.0/30")}
+	chunk2, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
+	require.True(t, ok, "")
+	require.Equal(t, addrRange("10.0.0.0", "10.0.0.1"), chunk2)
+
+	// space1 (10.0.0.0/30):
+	// ~~~~~~~~~~~~~~~~~~~~
+	// Allocated: 10.0.0.1, 10.0.0.2
+	// Donated: 10.0.0.0
+	// Free: 10.0.0.3
+
+	space1.Free(ip("10.0.0.1"))
+	within = addrRange("10.0.0.0", "10.0.0.3")
+	cidrs = []address.CIDR{cidr("10.0.0.1/32"), cidr("10.0.0.2/32")}
+	chunk3, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
+	require.True(t, ok, "")
+	require.Equal(t, addrRange("10.0.0.1", "10.0.0.2"), chunk3)
+	_, ok = space1.Donate(within, true, ownedCIDRRanges(cidrs))
+	require.False(t, ok, "")
+
+	// Test the donation procedure when there exists completely free CIDR ranges:
+	cidrs = []address.CIDR{cidr("10.0.0.0/26"), cidr("10.0.0.128/25")}
+	space2 := New()
+	space2.Add(ip("10.0.0.0"), 64)
+	space2.Add(ip("10.0.0.128"), 128)
+	chunk4, ok := space2.Donate(within, true, ownedCIDRRanges(cidrs))
+	require.True(t, ok, "")
+	require.Equal(t, addrRange("10.0.0.192", "10.0.1.0"), chunk4, "")
+}
+
+func TestIsFree(t *testing.T) {
+	space1 := New()
+	space1.Add(ip("10.0.0.0"), 256)
+	require.True(t, space1.IsFree(addrRange("10.0.0.0", "10.0.1.0")))
+	require.True(t, space1.IsFree(addrRange("10.0.0.42", "10.0.0.66")))
+	space1.Claim(ip("10.0.0.43"))
+	require.False(t, space1.IsFree(addrRange("10.0.0.42", "10.0.0.66")))
+}
+
+func TestIsFull(t *testing.T) {
+	space1 := New()
+	space1.Add(ip("10.0.0.0"), 256)
+	require.False(t, space1.IsFull(addrRange("10.0.0.0", "10.0.1.0")))
+	space1.Claim(ip("10.0.0.43"))
+	require.False(t, space1.IsFull(addrRange("10.0.0.0", "10.0.1.0")))
+	space1.remove(addrRange("10.0.0.0", "10.0.0.43"))
+	require.True(t, space1.IsFull(addrRange("10.0.0.0", "10.0.0.44")))
+}
+
+// Helpers
+
 func ownedCIDRRanges(cidrs []address.CIDR) func() []address.CIDR {
 	return func() []address.CIDR { return cidrs }
 }
@@ -278,66 +358,7 @@ func cidr(s string) address.CIDR {
 	return c
 }
 
-// [start;end)
+// addRange creates the address range of [start;end).
 func addrRange(start, end string) address.Range {
 	return address.Range{ip(start), ip(end)}
-}
-
-func TestDonateCIDR(t *testing.T) {
-	var (
-		within = addrRange("10.0.0.0", "10.0.1.0")
-	)
-
-	space1 := New()
-	space1.Add(ip("10.0.0.0"), 256)
-
-	// TODO(mp) improve coverage!
-	cidrs := []address.CIDR{cidr("10.0.0.0/24")}
-	chunk1, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
-	require.True(t, ok, "")
-	require.Equal(t, addrRange("10.0.0.128", "10.0.1.0"), chunk1)
-
-	cidrs = []address.CIDR{cidr("10.0.0.0/25")}
-	space1.Claim(ip("10.0.0.1"))
-	chunk2, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
-	require.True(t, ok, "")
-	require.Equal(t, addrRange("10.0.0.64", "10.0.0.128"), chunk2)
-
-	cidrs = []address.CIDR{cidr("10.0.0.0/26")}
-	chunk3, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
-	require.True(t, ok, "")
-	require.Equal(t, addrRange("10.0.0.32", "10.0.0.64"), chunk3)
-
-	cidrs = []address.CIDR{cidr("10.0.0.0/28")}
-	space1.Claim(ip("10.0.0.16"))
-	chunk4, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
-	require.True(t, ok, "")
-	require.Equal(t, addrRange("10.0.0.8", "10.0.0.16"), chunk4)
-
-	cidrs = []address.CIDR{cidr("10.0.0.0/26"), cidr("10.0.0.128/25")}
-	space2 := New()
-	space2.Add(ip("10.0.0.0"), 64)
-	space2.Add(ip("10.0.0.128"), 128)
-	chunk5, ok := space2.Donate(within, true, ownedCIDRRanges(cidrs))
-	require.True(t, ok, "")
-	require.Equal(t, addrRange("10.0.0.192", "10.0.1.0"), chunk5, "")
-}
-
-func TestDonateCIDREmpty(t *testing.T) {
-	var (
-		cidrs  = []address.CIDR{cidr("10.0.0.0/24")}
-		within = addrRange("10.0.0.0", "10.0.1.0")
-	)
-
-	space1 := New()
-	space1.Add(ip("10.0.0.0"), 256)
-
-	for i := 0; i < int(math.Log2(256.0)); i++ {
-		l, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
-		t.Log("omgz", i, l)
-		require.True(t, ok, fmt.Sprintf("%d-th claim", i))
-	}
-
-	_, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
-	require.False(t, ok, "")
 }

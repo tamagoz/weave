@@ -100,13 +100,12 @@ func (s *Space) NumFreeAddressesInRange(r address.Range) address.Offset {
 // IsFree checks whether there are no claimed addresses within
 // the given address range.
 func (s *Space) IsFree(r address.Range) bool {
-	// TODO(mp) Add unit test
 	return r.Size() == s.NumFreeAddressesInRange(r)
 }
 
-// TODO(mp) Comment
+// IsFull checks whether there are any free addresses within
+// the given address range.
 func (s *Space) IsFull(r address.Range) bool {
-	// TODO(mp) Add unit test
 	return s.NumFreeAddressesInRange(r) == 0
 }
 
@@ -162,7 +161,7 @@ func (s *Space) Donate(r address.Range, isCIDRAligned bool,
 	}
 
 	if ok {
-		s.Remove(chunk)
+		s.remove(chunk)
 	}
 
 	return chunk, ok
@@ -185,16 +184,18 @@ func (s *Space) findNonCIDRDonation(r address.Range) (address.Range, bool) {
 }
 
 // TODO(mp) the docs
+// cidrs should be within the given range!!!
 func (s *Space) findCIDRDonation(cidrs []address.CIDR) (address.Range, bool) {
-	// 1) Check whether there exists any free CIDR block. If yes, return it.
 	var freeCIDRs []address.CIDR
+
+	// 1) Check whether there exists any free CIDR range.
 	for _, cidr := range cidrs {
 		if s.IsFree(cidr.Range()) {
 			freeCIDRs = append(freeCIDRs, cidr)
 		}
 	}
-	// Return the biggest range divided by 2
 	if len(freeCIDRs) > 0 {
+		// Return the biggest range divided by 2
 		biggestCIDR := freeCIDRs[0]
 		for _, cidr := range freeCIDRs[1:] {
 			if biggestCIDR.Size() < cidr.Size() {
@@ -208,15 +209,19 @@ func (s *Space) findCIDRDonation(cidrs []address.CIDR) (address.Range, bool) {
 		return biggestCIDR.Range(), true
 	}
 
-	// No free CIDR blocks, so do BFS to find such.
+	// No free CIDR ranges, so let's start splitting them to find such.
 	// Return once we found a suitable range.
 	for len(cidrs) != 0 {
 		var next []address.CIDR
 		for _, cidr := range cidrs {
 			a, b, ok := cidr.Halve()
 			if !ok {
-				// We can ignore this cidr of /32 because we have validated it
-				// in prev level iteration.
+				if s.IsFree(cidr.Range()) {
+					// This case is never reached, because free CIDRs of /32
+					// are checked either by 1) step or in previous iterations
+					// in 2).
+					panic("should not reach")
+				}
 				continue
 			}
 			if s.IsFree(a.Range()) {
@@ -238,7 +243,8 @@ func (s *Space) findCIDRDonation(cidrs []address.CIDR) (address.Range, bool) {
 	return address.Range{}, false
 }
 
-func (s *Space) Remove(r address.Range) {
+// remove removes the given range from the space.
+func (s *Space) remove(r address.Range) {
 	s.ours = subtract(s.ours, r.Start, r.End)
 	s.free = subtract(s.free, r.Start, r.End)
 }

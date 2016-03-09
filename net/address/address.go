@@ -129,7 +129,7 @@ func (cidr CIDR) HostRange() Range {
 }
 
 // Halve splits cidr into two CIDRs of the equal size.
-// Returns false if cidr is to small, i.e. /32.
+// Returns false if cidr is too small, i.e. /32.
 func (cidr CIDR) Halve() (CIDR, CIDR, bool) {
 	if cidr.PrefixLen == CIDRMaxPrefixLen {
 		return CIDR{}, CIDR{}, false
