@@ -763,7 +763,7 @@ func (alloc *Allocator) donateSpace(r address.Range, to mesh.PeerName) {
 
 	alloc.debugln("Peer", to, "asked me for space")
 	chunk, ok := alloc.space.Donate(r, alloc.isCIDRAligned,
-		func() []address.CIDR { return alloc.ring.OwnedCIDRRangesWithinRange(r) })
+		func() []address.CIDR { return alloc.ring.OwnedCIDRRanges(r) })
 	if !ok {
 		free := alloc.space.NumFreeAddressesInRange(r)
 		common.Assert(free == 0)

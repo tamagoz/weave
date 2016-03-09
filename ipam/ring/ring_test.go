@@ -801,7 +801,7 @@ func (es entries) String() string {
 	return buffer.String()
 }
 
-func TestOwnedCIDRRangesWithinRange(t *testing.T) {
+func TestOwnedCIDRRanges(t *testing.T) {
 	ring := New(start, end+1, peer1name) // 10.0.0.0/24
 	entries := []entry{
 		{ip("10.0.0.128"), peer2name, 0, 128 + 16},
@@ -811,28 +811,26 @@ func TestOwnedCIDRRangesWithinRange(t *testing.T) {
 	}
 	// peer1: [10.0.0.16-10.0.0.16 10.0.0.64-10.0.0.127]
 	// peer2: [10.0.0.128-10.0.0.15 10.0.0.17-10.0.0.63]
-	insertEntries(ring, entries)
+	for _, e := range entries {
+		ring.Entries.insert(e)
+	}
 
-	cidrs := ring.OwnedCIDRRangesWithinRange(
+	cidrs := ring.OwnedCIDRRanges(
 		address.Range{Start: start, End: end + 1})
 	require.Len(t, cidrs, 2, "")
 	require.Equal(t, "10.0.0.16/32", cidrs[0].String(), "")
 	require.Equal(t, "10.0.0.64/26", cidrs[1].String(), "")
 
-	cidrs = ring.OwnedCIDRRangesWithinRange(
+	cidrs = ring.OwnedCIDRRanges(
 		address.Range{Start: ip("10.0.0.16"), End: ip("10.0.0.66")})
 	require.Len(t, cidrs, 2, "")
 	require.Equal(t, "10.0.0.16/32", cidrs[0].String(), "")
 	require.Equal(t, "10.0.0.64/31", cidrs[1].String(), "")
 }
 
+// TODO(mp) Move the helpers bellow to testing_utils or so to DRY.
+
 func ip(s string) address.Address {
 	addr, _ := address.ParseIP(s)
 	return addr
-}
-
-func insertEntries(ring *Ring, entries []entry) {
-	for _, e := range entries {
-		ring.Entries.insert(e)
-	}
 }

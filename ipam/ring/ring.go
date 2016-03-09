@@ -323,11 +323,12 @@ func (r *Ring) OwnedRanges() (result []address.Range) {
 	return r.splitRangesOverZero(result)
 }
 
-func (r *Ring) OwnedCIDRRangesWithinRange(req address.Range) (
+// OwnedCIDRRanges returns ordered and CIDR-aligned address ranges
+// constrained by the given req range.
+func (r *Ring) OwnedCIDRRanges(req address.Range) (
 	result []address.CIDR) {
 
-	// TODO(mp) rename
-	var mergedRanges []address.Range
+	var ranges []address.Range
 	for _, curr := range r.OwnedRanges() {
 		if req.End <= curr.Start {
 			break
@@ -339,15 +340,15 @@ func (r *Ring) OwnedCIDRRangesWithinRange(req address.Range) (
 		end := address.MinAddress(req.End, curr.End)
 
 		// ring.OwnedRanges() might return non-merged ranges, so we need to do
-		// it here:
-		if last := len(mergedRanges) - 1; last >= 0 && mergedRanges[last].End == start {
-			mergedRanges[last].End = end
+		// it manually here:
+		if last := len(ranges) - 1; last >= 0 && ranges[last].End == start {
+			ranges[last].End = end
 		} else {
-			mergedRanges = append(mergedRanges, address.Range{Start: start, End: end})
+			ranges = append(ranges, address.Range{Start: start, End: end})
 		}
 	}
 
-	for _, r := range mergedRanges {
+	for _, r := range ranges {
 		result = append(result, r.CIDRs()...)
 	}
 
