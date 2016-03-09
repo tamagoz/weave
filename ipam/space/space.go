@@ -183,12 +183,25 @@ func (s *Space) findNonCIDRDonation(r address.Range) (address.Range, bool) {
 	return biggest, true
 }
 
-// TODO(mp) the docs
-// cidrs should be within the given range!!!
+// findCIDRDonation tries to find a free CIDR (sub)range within the given list of
+// ranges.
+//
+// When searching for ranges we tend to find such that it would require the
+// least amount of splits. The strategy is a direct outcome of AWS VPC limitation for
+// number of route entries per table.
+//
+// An algorithm for search is the following:
+//
+// 1) Filter out non-free ranges from the cidrs parameter.
+// 2) Return the second half of the biggest range.
+// 3) If 1) step did not return, start halving the ranges.
+// 4) Check whether the first or the second half is free.
+// 4.1) True: Return it.
+// 4.2) False: Append non-full halves to the list of the iteration.
 func (s *Space) findCIDRDonation(cidrs []address.CIDR) (address.Range, bool) {
 	var freeCIDRs []address.CIDR
 
-	// 1) Check whether there exists any free CIDR range.
+	// Check whether there exists any free CIDR range.
 	for _, cidr := range cidrs {
 		if s.IsFree(cidr.Range()) {
 			freeCIDRs = append(freeCIDRs, cidr)
@@ -218,8 +231,8 @@ func (s *Space) findCIDRDonation(cidrs []address.CIDR) (address.Range, bool) {
 			if !ok {
 				if s.IsFree(cidr.Range()) {
 					// This case is never reached, because free CIDRs of /32
-					// are checked either by 1) step or in previous iterations
-					// in 2).
+					// are checked either in 1) step or in previous iterations
+					// of the loop.
 					panic("should not reach")
 				}
 				continue
