@@ -813,13 +813,14 @@ func TestOwnedCIDRRangesWithinRange(t *testing.T) {
 	// peer2: [10.0.0.128-10.0.0.15 10.0.0.17-10.0.0.63]
 	insertEntries(ring, entries)
 
-	cidrs := ring.OwnedCIDRRangesWithinRange(address.Range{start, end + 1})
+	cidrs := ring.OwnedCIDRRangesWithinRange(
+		address.Range{Start: start, End: end + 1})
 	require.Len(t, cidrs, 2, "")
 	require.Equal(t, "10.0.0.16/32", cidrs[0].String(), "")
 	require.Equal(t, "10.0.0.64/26", cidrs[1].String(), "")
 
 	cidrs = ring.OwnedCIDRRangesWithinRange(
-		address.Range{ip("10.0.0.16"), ip("10.0.0.66")})
+		address.Range{Start: ip("10.0.0.16"), End: ip("10.0.0.66")})
 	require.Len(t, cidrs, 2, "")
 	require.Equal(t, "10.0.0.16/32", cidrs[0].String(), "")
 	require.Equal(t, "10.0.0.64/31", cidrs[1].String(), "")

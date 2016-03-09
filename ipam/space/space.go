@@ -199,27 +199,26 @@ func (s *Space) findNonCIDRDonation(r address.Range) (address.Range, bool) {
 // 4.1) True: Return it.
 // 4.2) False: Append non-full halves to the list of the iteration.
 func (s *Space) findCIDRDonation(cidrs []address.CIDR) (address.Range, bool) {
-	var freeCIDRs []address.CIDR
+	var free []address.CIDR
 
 	// Check whether there exists any free CIDR range.
 	for _, cidr := range cidrs {
 		if s.IsFree(cidr.Range()) {
-			freeCIDRs = append(freeCIDRs, cidr)
+			free = append(free, cidr)
 		}
 	}
-	if len(freeCIDRs) > 0 {
-		// Return the biggest range divided by 2
-		biggestCIDR := freeCIDRs[0]
-		for _, cidr := range freeCIDRs[1:] {
-			if biggestCIDR.Size() < cidr.Size() {
-				biggestCIDR = cidr
+	if len(free) > 0 {
+		// Return the second half of the biggest range
+		biggest := free[0]
+		for _, cidr := range free[1:] {
+			if biggest.Size() < cidr.Size() {
+				biggest = cidr
 			}
 		}
-		// Donate second half
-		if _, second, ok := biggestCIDR.Halve(); ok {
-			biggestCIDR = second
+		if _, second, ok := biggest.Halve(); ok {
+			biggest = second
 		}
-		return biggestCIDR.Range(), true
+		return biggest.Range(), true
 	}
 
 	// No free CIDR ranges, so let's start splitting them to find such.
@@ -227,7 +226,7 @@ func (s *Space) findCIDRDonation(cidrs []address.CIDR) (address.Range, bool) {
 	for len(cidrs) != 0 {
 		var next []address.CIDR
 		for _, cidr := range cidrs {
-			a, b, ok := cidr.Halve()
+			first, second, ok := cidr.Halve()
 			if !ok {
 				if s.IsFree(cidr.Range()) {
 					// This case is never reached, because free CIDRs of /32
@@ -237,17 +236,17 @@ func (s *Space) findCIDRDonation(cidrs []address.CIDR) (address.Range, bool) {
 				}
 				continue
 			}
-			if s.IsFree(a.Range()) {
-				return a.Range(), true
+			if s.IsFree(first.Range()) {
+				return first.Range(), true
 			}
-			if s.IsFree(b.Range()) {
-				return b.Range(), true
+			if s.IsFree(second.Range()) {
+				return second.Range(), true
 			}
-			if !s.IsFull(a.Range()) {
-				next = append(next, a)
+			if !s.IsFull(first.Range()) {
+				next = append(next, first)
 			}
-			if !s.IsFull(b.Range()) {
-				next = append(next, b)
+			if !s.IsFull(second.Range()) {
+				next = append(next, second)
 			}
 		}
 		cidrs = next

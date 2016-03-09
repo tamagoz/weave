@@ -343,7 +343,7 @@ func (r *Ring) OwnedCIDRRangesWithinRange(req address.Range) (
 		if last := len(mergedRanges) - 1; last >= 0 && mergedRanges[last].End == start {
 			mergedRanges[last].End = end
 		} else {
-			mergedRanges = append(mergedRanges, address.Range{start, end})
+			mergedRanges = append(mergedRanges, address.Range{Start: start, End: end})
 		}
 	}
 

@@ -62,8 +62,8 @@ func MakeCIDR(subnet CIDR, addr Address) CIDR {
 // CIDRs return list of subranges in the CIDR notation which covers completely
 // the [r.Start, r.end) range
 func (r Range) CIDRs() []CIDR {
+	var cidrList []CIDR
 	start, end := r.Start, r.End-1
-	cidrList := make([]CIDR, 0)
 
 	const fullMask = ^Address(0)
 

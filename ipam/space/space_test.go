@@ -360,5 +360,5 @@ func cidr(s string) address.CIDR {
 
 // addRange creates the address range of [start;end).
 func addrRange(start, end string) address.Range {
-	return address.Range{ip(start), ip(end)}
+	return address.Range{Start: ip(start), End: ip(end)}
 }
