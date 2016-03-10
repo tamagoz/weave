@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/vishvananda/netlink"
+
 	"github.com/weaveworks/weave/common"
 	"github.com/weaveworks/weave/net/address"
 )
@@ -156,6 +157,7 @@ func (mon *AwsVPCMonitor) deleteHostRoute(cidr string) error {
 
 // groupRanges function groups overlapping address ranges.
 // TODO(mp) just find diff instead of performing the grouping.
+// TODO(mp) move to tmp
 func groupRanges(oldRanges, newRanges []address.Range) []rangeGroup {
 	var groups []rangeGroup
 	// i for oldRanges, j for newRanges

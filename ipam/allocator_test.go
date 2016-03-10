@@ -643,7 +643,6 @@ func TestMonitor(t *testing.T) {
 	)
 
 	monChan := make(chan rangePair, 10)
-
 	allocs, _, _ := makeNetworkOfAllocatorsWithMonitor(2, cidr, true, newTestMonitor(monChan))
 	defer stopNetworkOfAllocators(allocs)
 
@@ -653,7 +652,6 @@ func TestMonitor(t *testing.T) {
 	require.Equal(t, ip("10.0.0.1"), addr1, "")
 
 	// Check HandleUpdate invocations. 2 of them should be invoked only with new ranges.
-	// TODO(mp) check why there are more than 2 invocations.
 	newPeer1 := false
 	newPeer2 := false
 	for i := 0; i < 7; i++ {
@@ -703,6 +701,60 @@ func TestMonitor(t *testing.T) {
 		}
 	}
 	require.True(t, newDonation1 && newDonation2, "")
+}
+
+func TestShutdownWithMonitor(t *testing.T) {
+	const (
+		cidr       = "10.0.0.0/30"
+		container1 = "container-1"
+	)
+
+	monChan := make(chan rangePair, 10)
+	allocs, _, _ := makeNetworkOfAllocatorsWithMonitor(2, cidr, true, newTestMonitor(monChan))
+	defer stopNetworkOfAllocators(allocs)
+
+	cidr1, _ := address.ParseCIDR(cidr)
+	_, err := allocs[0].Allocate(container1, cidr1, returnFalse)
+	require.NoError(t, err, "")
+
+	time.Sleep(500 * time.Millisecond)
+	flush(monChan, 5)
+
+	// After allocation (and ring establishment):
+	// * peer1: [10.0.0.0-10.0.0.1]
+	// * peer2: [10.0.0.2-10.0.0.3]
+
+	// Shutdown peer1
+	allocs[0].Shutdown()
+
+	done := false
+	for i := 0; i < 3; i++ {
+		p := <-monChan
+		switch {
+		// TODO(mp) newRange -> addrRange
+		// This should uniquely match HandleUpdate invokation on peer2 which
+		// happens after peer1 notified peer2 about the donation due to its
+		// termination:
+		case !done && len(p.old) == 1 && len(p.new) == 2:
+			require.Equal(t, newRange("10.0.0.2", "10.0.0.3"), p.old[0], "")
+			require.Equal(t, newRange("10.0.0.0", "10.0.0.1"), p.new[0], "")
+			require.Equal(t, newRange("10.0.0.2", "10.0.0.3"), p.new[1], "")
+			// peer2 has received peer1's previously owned ranges
+
+			require.Len(t, p.old, 1, "")
+			require.Len(t, p.new, 2, "")
+			done = true
+		default:
+			continue
+		}
+	}
+	require.True(t, done, "")
+}
+
+func flush(c chan rangePair, count int) {
+	for i := 0; i < count; i++ {
+		<-c
+	}
 }
 
 type testMonitor struct {

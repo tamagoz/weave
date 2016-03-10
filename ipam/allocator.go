@@ -361,6 +361,7 @@ func (alloc *Allocator) Shutdown() {
 		alloc.cancelOps(&alloc.pendingAllocates)
 		alloc.cancelOps(&alloc.pendingConsenses)
 		if heir := alloc.pickPeerForTransfer(); heir != mesh.UnknownPeerName {
+			alloc.monitor.HandleUpdate(alloc.ring.OwnedRanges(), nil)
 			alloc.ring.Transfer(alloc.ourName, heir)
 			alloc.space.Clear()
 			alloc.gossip.GossipBroadcast(alloc.Gossip())
@@ -372,7 +373,7 @@ func (alloc *Allocator) Shutdown() {
 }
 
 // AdminTakeoverRanges (Sync) - take over the ranges owned by a given peer.
-// Only done on adminstrator command.
+// Only done on administrator command.
 func (alloc *Allocator) AdminTakeoverRanges(peerNameOrNickname string) error {
 	resultChan := make(chan error)
 	alloc.actionChan <- func() {
@@ -388,7 +389,9 @@ func (alloc *Allocator) AdminTakeoverRanges(peerNameOrNickname string) error {
 			return
 		}
 
+		oldRanges := alloc.ring.OwnedRanges()
 		newRanges, err := alloc.ring.Transfer(peername, alloc.ourName)
+		alloc.monitor.HandleUpdate(oldRanges, alloc.ring.OwnedRanges())
 		alloc.space.AddRanges(newRanges)
 		resultChan <- err
 	}
@@ -778,7 +781,6 @@ func (alloc *Allocator) donateSpace(r address.Range, to mesh.PeerName) {
 	alloc.ring.GrantRangeToHost(chunk.Start, chunk.End, to)
 	alloc.persistRing()
 	newRanges := alloc.ring.OwnedRanges()
-	// TODO(mp) OwnedRanges gets called quite a few times...
 	alloc.monitor.HandleUpdate(oldRanges, newRanges)
 }
 
