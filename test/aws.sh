@@ -3,12 +3,50 @@
 # The script is used to setup AWS EC2 machines for running integration tests.
 #
 # Before running the script, make sure that:
-# * An user within IAM is created (attached policies: "AmazonEC2FullAccess").
+# * An user ("weavenet-circleci") in IAM has been created
+#   (attached policies: "AmazonEC2FullAccess").
 # * AWS credentials of the user are set in CircleCI.
 #
 # Each machine is scheduled to terminate after 30mins (via `shutdown -h`). It
 # is needed because, at the time of writing, CircleCI does not support
 # a graceful teardown in a case of build cancelation.
+
+# In order to run awsvpc related tests, the following steps should be taken:
+# * Create "weavenet-vpc" policy:
+#      {
+#          "Version": "2012-10-17",
+#          "Statement": [
+#              {
+#                  "Effect": "Allow",
+#                  "Action": [
+#                      "ec2:CreateRoute",
+#                      "ec2:DeleteRoute",
+#                      "ec2:ReplaceRoute",
+#                      "ec2:DescribeRouteTables"
+#                  ],
+#                  "Resource": [
+#                      "*"
+#                  ]
+#              }
+#          ]
+#      }
+# * Create the "weavenet-ci_aws" role and attach the "weavenet-vpc" policy to it.
+# * Create and attach the following policy ("weavenet-ci_vm") to
+#   the "weavenet-circleci" user:
+#      {
+#          "Version": "2012-10-17",
+#          "Statement": [
+#              {
+#                  "Effect": "Allow",
+#                  "Action": "iam:PassRole",
+#                  "Resource": "$ARN"
+#              }
+#          ]
+#      }
+#   (where $ARN is an ARN of the "weavenet-ci_aws" role).
+
+# TODO(mp) Add instructions for creating a policy (weaveci-aws_tests).
+
 
 set -e
 
@@ -152,6 +190,7 @@ function run_instances {
         --placement "AvailabilityZone=$ZONE"    \
         --instance-type "$INSTANCE_TYPE"        \
         --security-groups "$SEC_GROUP_NAME"     \
+        --iam-instance-profile Name="weaveci-ci_aws"   \
         --count $count
 }
 
