@@ -1,18 +1,16 @@
 #!/bin/bash
 
-# The script is used to setup AWS EC2 machines for running integration tests.
-#
-# Before running the script, make sure that:
-# * An user ("weavenet-circleci") in IAM has been created
-#   (attached policies: "AmazonEC2FullAccess").
-# * AWS credentials of the user are set in CircleCI.
-#
-# Each machine is scheduled to terminate after 30mins (via `shutdown -h`). It
-# is needed because, at the time of writing, CircleCI does not support
-# a graceful teardown in a case of build cancelation.
+# TODO(mp) create custom VPC to avoid potential clashes with other weave
+# citizens.
 
-# In order to run awsvpc related tests, the following steps should be taken:
-# * Create "weavenet-vpc" policy:
+# The script is used to setup AWS EC2 machines for running the integration tests.
+#
+# Before running the script, make sure that the following has been done (once):
+#
+# 1) The "weavenet-circleci" IAM user has been created and its credentials are
+#    set in CircleCI AWS profile page.
+# 2) The "AmazonEC2FullAccess" policy has been attached to the user.
+# 3) The "weavenet-vpc" policy has been created:
 #      {
 #          "Version": "2012-10-17",
 #          "Statement": [
@@ -30,9 +28,9 @@
 #              }
 #          ]
 #      }
-# * Create the "weavenet-ci_aws" role and attach the "weavenet-vpc" policy to it.
-# * Create and attach the following policy ("weavenet-ci_vm") to
-#   the "weavenet-circleci" user:
+# 4) The "weavenet-test_host" role has been created.
+# 5) The "weavenet-vpc" policy has been attached to the role.
+# 6) The "weavenet-pass_vpc" policy has been created:
 #      {
 #          "Version": "2012-10-17",
 #          "Statement": [
@@ -43,10 +41,13 @@
 #              }
 #          ]
 #      }
-#   (where $ARN is an ARN of the "weavenet-ci_aws" role).
-
-# TODO(mp) Add instructions for creating a policy (weaveci-aws_tests).
-
+#    (where $ARN is an ARN of the "weavenet-test_host" role; can be found in the
+#     role's profile page).
+# 7) The policy has been attached to the "weavenet-circleci" user.
+#
+# NB: Each machine is scheduled to terminate after 30mins (via `shutdown -h`).
+# It is needed because, at the time of writing, CircleCI does not support
+# a graceful teardown in a case of build cancellation.
 
 set -e
 
@@ -56,14 +57,13 @@ set -e
 : ${IMAGE_NAME:="weavenet_ci"}
 
 : ${INSTANCE_TYPE:="t2.micro"}
-: ${INSTANCE_TAG:="weavenet_ci"}
 : ${SEC_GROUP_NAME:="weavenet-ci"}
 : ${TERMINATE_AFTER_MIN:=30}
 
 : ${KEY_NAME:="weavenet_ci"}
 : ${SSH_KEY_FILE:="$HOME/.ssh/$KEY_NAME"}
 
-: ${NUM_HOSTS:=3}
+: ${NUM_HOSTS:=2}
 : ${AWSCLI:="aws"}
 : ${SSHCMD:="ssh -o StrictHostKeyChecking=no -o CheckHostIp=no
              -o UserKnownHostsFile=/dev/null -l ubuntu -i $SSH_KEY_FILE"}
@@ -74,7 +74,8 @@ if [ -n "$CIRCLECI" ]; then
 fi
 
 # Creates and runs a set of VMs.
-# Each VM is named after "host${ID}${SUFFIX}" and is tagged with $INSTANCE_TAG.
+# Each VM is named after "host${ID}${SUFFIX}" and is tagged with the "weavenet_ci"
+# tag.
 # NOTE: each VM will be automatically terminated after $TERMINATE_AFTER_MIN minutes.
 function setup {
     # Destroy previous machines (if any)
@@ -93,7 +94,7 @@ function setup {
         $AWSCLI ec2 create-tags                             \
             --resources "$vm"                               \
             --tags "Key=Name,Value=\"$(vm_name $i)\""       \
-                   "Key=$INSTANCE_TAG,Value=\"true\""
+                   "Key=weavenet_ci,Value=\"true\""
         $AWSCLI ec2 modify-instance-attribute               \
             --instance-id "$vm"                             \
             --no-source-dest-check
@@ -165,9 +166,10 @@ function destroy {
         instances="$i $instances"
     done
 
-    echo "Terminating $instances instances"
-    [[ ! -z "$instances" ]] &&
+    if [[ ! -z "$instances" ]]; then
+        echo "Terminating $instances instances"
         $AWSCLI ec2 terminate-instances --instance-ids $instances > /dev/null
+    fi
 
     rm $json
 }
@@ -184,20 +186,20 @@ function run_instances {
     # Check whether a necessary security group exists
     ensure_sec_group > /dev/null
 
-    $AWSCLI ec2 run-instances                   \
-        --image-id "$image_id"                  \
-        --key-name "$KEY_NAME"                  \
-        --placement "AvailabilityZone=$ZONE"    \
-        --instance-type "$INSTANCE_TYPE"        \
-        --security-groups "$SEC_GROUP_NAME"     \
-        --iam-instance-profile Name="weaveci-ci_aws"   \
+    $AWSCLI ec2 run-instances                               \
+        --image-id "$image_id"                              \
+        --key-name "$KEY_NAME"                              \
+        --placement "AvailabilityZone=$ZONE"                \
+        --instance-type "$INSTANCE_TYPE"                    \
+        --security-groups "$SEC_GROUP_NAME"                 \
+        --iam-instance-profile Name="weavenet-test_host"    \
         --count $count
 }
 
 function list_instances {
     $AWSCLI ec2 describe-instances                                      \
         --filters "Name=instance-state-name,Values=pending,running"     \
-                  "Name=tag:$INSTANCE_TAG,Values=true"                  \
+                  "Name=tag:weavenet_ci,Values=true"                  \
                   "Name=tag:Name,Values=$(vm_names| sed 's/ $//' | sed 's/ /,/g')"
 }
 
@@ -372,7 +374,7 @@ function copy_hosts {
 }
 
 function install_docker_on {
-    # TODO(mp) bring back `-s overlay` opt to DOCKER_OPTS.
+    # TODO(mp) bring back the `-s overlay` opt to DOCKER_OPTS.
 
 	name=$1
 	$SSHCMD -t $name sudo bash -x -s <<EOF

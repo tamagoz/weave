@@ -11,6 +11,7 @@ function routetableid {
     json=$(mktemp json.XXXXXXXXXX)
     aws ec2 describe-instances                                      \
         --filters "Name=instance-state-name,Values=pending,running" \
+                  "Name=tag:weavenet_ci,Values=true"                \
                   "Name=tag:Name,Values=$host" > $json
     vpcid=$(jq -r ".Reservations[0].Instances[0].NetworkInterfaces[0].VpcId" $json)
     aws ec2 describe-route-tables                                   \
@@ -22,8 +23,9 @@ function routetableid {
 function cleanup_routetable {
     id=$1
     json=$(mktemp json.XXXXXXXXXX)
+    echo "Cleaning up routes $json"
     aws ec2 describe-route-tables --route-table-ids $id > $json
-    cidrs=$(jq -r ".RouteTables[0].Routes[] | select(has(\"InstanceId\")) |
+    cidrs=$(jq -r ".RouteTables[0].Routes[] | select(has(\"NetworkInterfaceId\")) |
                     .DestinationCidrBlock" $json)
     for cidr in $cidrs; do
         echo "Removing $cidr route"
