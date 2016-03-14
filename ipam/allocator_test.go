@@ -731,17 +731,14 @@ func TestShutdownWithMonitor(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		p := <-monChan
 		switch {
-		// This should uniquely match HandleUpdate invokation on peer2 which
+		// This should uniquely match HandleUpdate invocation on peer2 which
 		// happens after peer1 notified peer2 about the donation due to its
 		// termination:
-		case !done && len(p.old) == 1 && len(p.new) == 2:
+		case !done && len(p.old) == 1 && len(p.new) == 1:
 			require.Equal(t, addrRange("10.0.0.2", "10.0.0.3"), p.old[0], "")
-			require.Equal(t, addrRange("10.0.0.0", "10.0.0.1"), p.new[0], "")
-			require.Equal(t, addrRange("10.0.0.2", "10.0.0.3"), p.new[1], "")
+			require.Equal(t, addrRange("10.0.0.0", "10.0.0.3"), p.new[0], "")
 			// peer2 has received peer1's previously owned ranges
 
-			require.Len(t, p.old, 1, "")
-			require.Len(t, p.new, 2, "")
 			done = true
 		default:
 			continue
@@ -752,10 +749,8 @@ func TestShutdownWithMonitor(t *testing.T) {
 	// Shutdown peer2
 	allocs[1].Shutdown()
 	p := <-monChan
+	require.Equal(t, []address.Range{addrRange("10.0.0.0", "10.0.0.3")}, p.old, "")
 	require.Len(t, p.new, 0, "")
-	require.Len(t, p.old, 2, "")
-	require.Equal(t, addrRange("10.0.0.0", "10.0.0.1"), p.old[0], "")
-	require.Equal(t, addrRange("10.0.0.2", "10.0.0.3"), p.old[1], "")
 }
 
 func flush(c chan rangePair, count int) {

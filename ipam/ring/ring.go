@@ -323,13 +323,32 @@ func (r *Ring) OwnedRanges() (result []address.Range) {
 	return r.splitRangesOverZero(result)
 }
 
+// OwnedAndMergedRanges does the same as OwnedRanges, except that it returns
+// merged ranges.
+func (r *Ring) OwnedAndMergedRanges() (result []address.Range) {
+	r.assertInvariants()
+
+	for i, entry := range r.Entries {
+		if entry.Peer == r.Peer {
+			nextEntry := r.Entries.entry(i + 1)
+			if last := len(result) - 1; last >= 0 && result[last].End == entry.Token {
+				result[last].End = nextEntry.Token
+			} else {
+				result = append(result, address.Range{Start: entry.Token, End: nextEntry.Token})
+			}
+		}
+	}
+
+	return r.splitRangesOverZero(result)
+}
+
 // OwnedCIDRRanges returns ordered and CIDR-aligned address ranges
 // constrained by the given req range.
 func (r *Ring) OwnedCIDRRanges(req address.Range) (
 	result []address.CIDR) {
 
 	var ranges []address.Range
-	for _, curr := range r.OwnedRanges() {
+	for _, curr := range r.OwnedAndMergedRanges() {
 		if req.End <= curr.Start {
 			break
 		}
@@ -339,13 +358,7 @@ func (r *Ring) OwnedCIDRRanges(req address.Range) (
 		start := address.MaxAddress(req.Start, curr.Start)
 		end := address.MinAddress(req.End, curr.End)
 
-		// ring.OwnedRanges() might return non-merged ranges, so we need to do
-		// it manually here:
-		if last := len(ranges) - 1; last >= 0 && ranges[last].End == start {
-			ranges[last].End = end
-		} else {
-			ranges = append(ranges, address.Range{Start: start, End: end})
-		}
+		ranges = append(ranges, address.Range{Start: start, End: end})
 	}
 
 	for _, r := range ranges {

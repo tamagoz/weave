@@ -807,7 +807,8 @@ func TestOwnedCIDRRanges(t *testing.T) {
 		{ip("10.0.0.128"), peer2name, 0, 128 + 16},
 		{ip("10.0.0.16"), peer1name, 0, 1},
 		{ip("10.0.0.17"), peer2name, 0, 47},
-		{ip("10.0.0.64"), peer1name, 0, 64},
+		{ip("10.0.0.64"), peer1name, 0, 63},
+		{ip("10.0.0.127"), peer1name, 0, 1},
 	}
 	// peer1: [10.0.0.16-10.0.0.16 10.0.0.64-10.0.0.127]
 	// peer2: [10.0.0.128-10.0.0.15 10.0.0.17-10.0.0.63]
@@ -833,4 +834,23 @@ func TestOwnedCIDRRanges(t *testing.T) {
 func ip(s string) address.Address {
 	addr, _ := address.ParseIP(s)
 	return addr
+}
+
+func TestOwnedAndMergedRanges(t *testing.T) {
+	ring1 := New(start, end, peer1name)
+
+	ring1.Entries.insert(
+		entry{Token: start, Peer: peer1name, Free: address.Subtract(dot10, start)})
+	ring1.Entries.insert(
+		entry{Token: dot10, Peer: peer1name, Free: address.Subtract(dot245, dot10)})
+	ring1.Entries.insert(
+		entry{Token: dot245, Peer: peer2name, Free: address.Subtract(dot250, dot245)})
+	ring1.Entries.insert(
+		entry{Token: dot250, Peer: peer1name, Free: address.Subtract(end, dot250)})
+
+	require.Equal(t,
+		[]address.Range{
+			{Start: start, End: dot245},
+			{Start: dot250, End: end},
+		}, ring1.OwnedAndMergedRanges())
 }

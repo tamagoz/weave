@@ -360,7 +360,7 @@ func (alloc *Allocator) Shutdown() {
 		alloc.cancelOps(&alloc.pendingClaims)
 		alloc.cancelOps(&alloc.pendingAllocates)
 		alloc.cancelOps(&alloc.pendingConsenses)
-		alloc.monitor.HandleUpdate(alloc.ring.OwnedRanges(), nil)
+		alloc.monitor.HandleUpdate(alloc.ring.OwnedAndMergedRanges(), nil)
 		if heir := alloc.pickPeerForTransfer(); heir != mesh.UnknownPeerName {
 			alloc.ring.Transfer(alloc.ourName, heir)
 			alloc.space.Clear()
@@ -389,9 +389,9 @@ func (alloc *Allocator) AdminTakeoverRanges(peerNameOrNickname string) error {
 			return
 		}
 
-		oldRanges := alloc.ring.OwnedRanges()
+		oldRanges := alloc.ring.OwnedAndMergedRanges()
 		newRanges, err := alloc.ring.Transfer(peername, alloc.ourName)
-		alloc.monitor.HandleUpdate(oldRanges, alloc.ring.OwnedRanges())
+		alloc.monitor.HandleUpdate(oldRanges, alloc.ring.OwnedAndMergedRanges())
 		alloc.space.AddRanges(newRanges)
 		resultChan <- err
 	}
@@ -596,7 +596,7 @@ func (alloc *Allocator) createRing(peers []mesh.PeerName) {
 	alloc.debugln("Paxos consensus:", peers)
 	alloc.ring.ClaimForPeers(normalizeConsensus(peers), alloc.isCIDRAligned)
 	// We assume that the peer has not possessed any address ranges before
-	alloc.monitor.HandleUpdate(nil, alloc.ring.OwnedRanges())
+	alloc.monitor.HandleUpdate(nil, alloc.ring.OwnedAndMergedRanges())
 	alloc.gossip.GossipBroadcast(alloc.Gossip())
 	alloc.ringUpdated()
 }
@@ -698,12 +698,12 @@ func (alloc *Allocator) update(sender mesh.PeerName, msg []byte) error {
 	// If someone sent us a ring, merge it into ours. Note this will move us
 	// out of the awaiting-consensus state if we didn't have a ring already.
 	case data.Ring != nil:
-		oldRanges = alloc.ring.OwnedRanges()
+		oldRanges = alloc.ring.OwnedAndMergedRanges()
 		switch err = alloc.ring.Merge(*data.Ring); err {
 		case nil:
 			if !alloc.ring.Empty() {
 				alloc.pruneNicknames()
-				alloc.monitor.HandleUpdate(oldRanges, alloc.ring.OwnedRanges())
+				alloc.monitor.HandleUpdate(oldRanges, alloc.ring.OwnedAndMergedRanges())
 				alloc.ringUpdated()
 			}
 		case ring.ErrDifferentSeeds:
@@ -777,11 +777,10 @@ func (alloc *Allocator) donateSpace(r address.Range, to mesh.PeerName) {
 		return
 	}
 	alloc.debugln("Giving range", chunk, "to", to)
-	oldRanges := alloc.ring.OwnedRanges()
+	oldRanges := alloc.ring.OwnedAndMergedRanges()
 	alloc.ring.GrantRangeToHost(chunk.Start, chunk.End, to)
 	alloc.persistRing()
-	newRanges := alloc.ring.OwnedRanges()
-	alloc.monitor.HandleUpdate(oldRanges, newRanges)
+	alloc.monitor.HandleUpdate(oldRanges, alloc.ring.OwnedAndMergedRanges())
 }
 
 func (alloc *Allocator) assertInvariants() {
