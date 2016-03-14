@@ -280,13 +280,13 @@ func TestDonateCIDR(t *testing.T) {
 	//  +-------------------------------------------------+
 	//  .0                                                .128
 
-	within = addrRange("10.0.0.0", "10.0.1.0")
+	within = addrRange("10.0.0.0", "10.0.0.255")
 	cidrs = []address.CIDR{cidr("10.0.0.0/25")}
 	space1.Claim(ip("10.0.0.1"))
 	space1.Claim(ip("10.0.0.97"))
 	chunk1, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
 	require.True(t, ok, "")
-	require.Equal(t, addrRange("10.0.0.32", "10.0.0.64"), chunk1)
+	require.Equal(t, addrRange("10.0.0.32", "10.0.0.63"), chunk1)
 
 	// space1 (10.0.0.0/25):
 	//  +-------------------------------------------------+
@@ -297,11 +297,11 @@ func TestDonateCIDR(t *testing.T) {
 	// (A stands for Allocated By Us)
 
 	space1.Claim(ip("10.0.0.2"))
-	within = addrRange("10.0.0.0", "10.0.0.4")
+	within = addrRange("10.0.0.0", "10.0.0.3")
 	cidrs = []address.CIDR{cidr("10.0.0.0/30")}
 	chunk2, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
 	require.True(t, ok, "")
-	require.Equal(t, addrRange("10.0.0.0", "10.0.0.1"), chunk2)
+	require.Equal(t, addrRange("10.0.0.0", "10.0.0.0"), chunk2)
 
 	// space1 (10.0.0.0/30):
 	// ~~~~~~~~~~~~~~~~~~~~
@@ -310,11 +310,11 @@ func TestDonateCIDR(t *testing.T) {
 	// Free: 10.0.0.3
 
 	space1.Free(ip("10.0.0.1"))
-	within = addrRange("10.0.0.0", "10.0.0.3")
+	within = addrRange("10.0.0.0", "10.0.0.2")
 	cidrs = []address.CIDR{cidr("10.0.0.1/32"), cidr("10.0.0.2/32")}
 	chunk3, ok := space1.Donate(within, true, ownedCIDRRanges(cidrs))
 	require.True(t, ok, "")
-	require.Equal(t, addrRange("10.0.0.1", "10.0.0.2"), chunk3)
+	require.Equal(t, addrRange("10.0.0.1", "10.0.0.1"), chunk3)
 	_, ok = space1.Donate(within, true, ownedCIDRRanges(cidrs))
 	require.False(t, ok, "")
 
@@ -325,26 +325,26 @@ func TestDonateCIDR(t *testing.T) {
 	space2.Add(ip("10.0.0.128"), 128)
 	chunk4, ok := space2.Donate(within, true, ownedCIDRRanges(cidrs))
 	require.True(t, ok, "")
-	require.Equal(t, addrRange("10.0.0.192", "10.0.1.0"), chunk4, "")
+	require.Equal(t, addrRange("10.0.0.192", "10.0.0.255"), chunk4, "")
 }
 
 func TestIsFree(t *testing.T) {
 	space1 := New()
 	space1.Add(ip("10.0.0.0"), 256)
-	require.True(t, space1.IsFree(addrRange("10.0.0.0", "10.0.1.0")))
-	require.True(t, space1.IsFree(addrRange("10.0.0.42", "10.0.0.66")))
+	require.True(t, space1.IsFree(addrRange("10.0.0.0", "10.0.0.255")))
+	require.True(t, space1.IsFree(addrRange("10.0.0.42", "10.0.0.65")))
 	space1.Claim(ip("10.0.0.43"))
-	require.False(t, space1.IsFree(addrRange("10.0.0.42", "10.0.0.66")))
+	require.False(t, space1.IsFree(addrRange("10.0.0.42", "10.0.0.65")))
 }
 
 func TestIsFull(t *testing.T) {
 	space1 := New()
 	space1.Add(ip("10.0.0.0"), 256)
-	require.False(t, space1.IsFull(addrRange("10.0.0.0", "10.0.1.0")))
+	require.False(t, space1.IsFull(addrRange("10.0.0.0", "10.0.0.255")))
 	space1.Claim(ip("10.0.0.43"))
-	require.False(t, space1.IsFull(addrRange("10.0.0.0", "10.0.1.0")))
-	space1.remove(addrRange("10.0.0.0", "10.0.0.43"))
-	require.True(t, space1.IsFull(addrRange("10.0.0.0", "10.0.0.44")))
+	require.False(t, space1.IsFull(addrRange("10.0.0.0", "10.0.0.255")))
+	space1.remove(addrRange("10.0.0.0", "10.0.0.42"))
+	require.True(t, space1.IsFull(addrRange("10.0.0.0", "10.0.0.43")))
 }
 
 // Helpers
@@ -358,7 +358,7 @@ func cidr(s string) address.CIDR {
 	return c
 }
 
-// addRange creates the address range of [start;end).
+// Creates [start;end] address.Range
 func addrRange(start, end string) address.Range {
-	return address.Range{Start: ip(start), End: ip(end)}
+	return address.Range{Start: ip(start), End: ip(end) + 1}
 }

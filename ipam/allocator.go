@@ -360,8 +360,8 @@ func (alloc *Allocator) Shutdown() {
 		alloc.cancelOps(&alloc.pendingClaims)
 		alloc.cancelOps(&alloc.pendingAllocates)
 		alloc.cancelOps(&alloc.pendingConsenses)
+		alloc.monitor.HandleUpdate(alloc.ring.OwnedRanges(), nil)
 		if heir := alloc.pickPeerForTransfer(); heir != mesh.UnknownPeerName {
-			alloc.monitor.HandleUpdate(alloc.ring.OwnedRanges(), nil)
 			alloc.ring.Transfer(alloc.ourName, heir)
 			alloc.space.Clear()
 			alloc.gossip.GossipBroadcast(alloc.Gossip())
