@@ -10,7 +10,7 @@ if ! bash "$DIR/sanity_check.sh"; then
 fi
 whitely echo ...ok
 
-TESTS="${@:-$(find . -name '900_awsvpc_test.sh')}"
+TESTS="${@:-$(find . -name '900_awsvpc_2_test.sh')}"
 RUNNER_ARGS=""
 
 # If running on circle, use the scheduler to work out what tests to run
