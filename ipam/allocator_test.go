@@ -771,8 +771,9 @@ func newTestMonitor(monChan chan rangePair) *testMonitor {
 	return &testMonitor{monChan}
 }
 
-func (mon *testMonitor) HandleUpdate(old, new []address.Range) {
+func (mon *testMonitor) HandleUpdate(old, new []address.Range) error {
 	mon.monChan <- rangePair{old, new}
+	return nil
 }
 
 // Creates [start;end] address.Range.

@@ -1,8 +1,9 @@
 package monitor
 
-// TODO docs
+// TODO(mp) docs
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -26,14 +27,14 @@ type AwsVPCMonitor struct {
 //
 // The monitor updates AWS VPC and host route tables when any changes to allocated
 // address ranges owner by a peer have been committed.
-func NewAwsVPCMonitor(routeTableID string) *AwsVPCMonitor {
+func NewAwsVPCMonitor(routeTableID string) (*AwsVPCMonitor, error) {
 	// TODO(mp) add detect mechanism for the routerTableId
 	var err error
 	session := session.New()
 	mon := &AwsVPCMonitor{}
 
 	if routeTableID == "" {
-		common.Log.Fatalln("awsvpc: routeTableID cannot be empty")
+		return nil, fmt.Errorf("routeTableID cannot be empty")
 	}
 	mon.routeTableID = routeTableID
 
@@ -41,77 +42,86 @@ func NewAwsVPCMonitor(routeTableID string) *AwsVPCMonitor {
 	meta := ec2metadata.New(session)
 	mon.instanceID, err = meta.GetMetadata("instance-id")
 	if err != nil {
-		common.Log.Fatalf("awsvpc: Cannot detect instance-id: %s\n", err)
+		return nil, fmt.Errorf("Cannot detect instance-id due to %s", err)
 	}
 	region, err := meta.Region()
 	if err != nil {
-		common.Log.Fatalf("awsvpc: Cannot detect region: %s\n", err)
+		return nil, fmt.Errorf("Cannot detect region due to %s", err)
 	}
 	// Create EC2 session
 	mon.ec2 = ec2.New(session, aws.NewConfig().WithRegion(region))
 
-	common.Log.Infof("awsvpc: Successfully initialized. routeTableID: %s. instanceID: %s. region: %s\n",
-		mon.routeTableID, mon.instanceID, region)
-
 	// Detect Weave bridge link index
 	// TODO(mp) pass as an argument bridge name
-	link, err := netlink.LinkByName("weave")
+	bridgeIfName := "weave"
+	link, err := netlink.LinkByName(bridgeIfName)
 	if err != nil {
-		common.Log.Fatalln("awsvpc: Cannot find weave interface")
+		return nil, fmt.Errorf("Cannot find \"%s\" interface", bridgeIfName)
 	}
 	mon.linkIndex = link.Attrs().Index
 
-	return mon
+	common.Log.Debugf(
+		"AWSVPC monitor has been initialized on %s instance for %s route table at %s region",
+		mon.instanceID, mon.routeTableID, region)
+
+	return mon, nil
 }
 
-// HandleUpdate method updates routing table.
-func (mon *AwsVPCMonitor) HandleUpdate(old, new []address.Range) {
-	oldCIDRs, newCIDRs := filterSameCIDRs(address.NewCIDRs(old), address.NewCIDRs(new))
+// HandleUpdate method updates the AWS VPC and the host route tables.
+func (mon *AwsVPCMonitor) HandleUpdate(old, new []address.Range) error {
+	oldCIDRs, newCIDRs := filterOutSameCIDRs(address.NewCIDRs(old), address.NewCIDRs(new))
+
+	// It might make sense to do removal first and then add entries
+	// because of the 50 routes limit. However, in such case a container might
+	// not be reachable for short period of time which we we would like to
+	// avoid.
+
+	// Add new entries
 	for _, cidr := range newCIDRs {
 		cidrStr := cidr.String()
-
-		common.Log.Infof("awsvpc: Creating %s route to %s within %s route table.\n",
-			cidr, mon.instanceID, mon.routeTableID)
+		common.Log.Debugf("Creating %s route to %s.", cidrStr, mon.instanceID)
 		out, err := mon.createVPCRoute(cidrStr)
+		// TODO(mp) check for 50 routes limit
+		// TODO(mp) maybe check for auth related errors
 		if err != nil {
-			common.Log.Fatalf("awsvpc: createVPCRoute: %s %s\n", err, out)
+			return fmt.Errorf("createVPCRoutes failed due to %s; details: %s",
+				err, out)
 		}
-		common.Log.Infof("awsvpc: Creating %s route on host.\n", cidr)
 		err = mon.createHostRoute(cidrStr)
 		if err != nil {
-			common.Log.Fatalf("awsvpc: createHostRoute: %s\n", err)
+			return fmt.Errorf("createHostRoute failed due to %s", err)
 		}
 	}
+
+	// Remove obsolete entries
 	for _, cidr := range oldCIDRs {
 		cidrStr := cidr.String()
-		common.Log.Infof("awsvpc: Removing %s route from %s route table.\n",
-			cidr, mon.routeTableID)
+		common.Log.Debugf("Removing %s route", cidrStr)
 		out, err := mon.deleteVPCRoute(cidrStr)
 		if err != nil {
-			common.Log.Fatalf("awsvpc: deleteVPCRoute: %s %s\n", err, out)
+			return fmt.Errorf("deleteVPCRoute failed due to %s; details: %s",
+				err, out)
 		}
-		common.Log.Infof("awsvpc: Removing %s route on host.\n", cidr)
 		err = mon.deleteHostRoute(cidrStr)
 		if err != nil {
-			common.Log.Fatalf("awsvpc: deleteHostRoute: %s\n", err)
+			return fmt.Errorf("deleteHostRoute failed due to %s", err)
 		}
 	}
+
+	return nil
 }
 
-func (mon *AwsVPCMonitor) createVPCRoute(cidr string) (
-	*ec2.CreateRouteOutput, error) {
-
+func (mon *AwsVPCMonitor) createVPCRoute(cidr string) (*ec2.CreateRouteOutput, error) {
 	route := &ec2.CreateRouteInput{
 		RouteTableId:         &mon.routeTableID,
 		InstanceId:           &mon.instanceID,
 		DestinationCidrBlock: &cidr,
 	}
-
 	return mon.ec2.CreateRoute(route)
 }
 
 func (mon *AwsVPCMonitor) createHostRoute(cidr string) error {
-	dst, err := parseIP(cidr)
+	dst, err := parseCIDR(cidr)
 	if err != nil {
 		return err
 	}
@@ -119,7 +129,6 @@ func (mon *AwsVPCMonitor) createHostRoute(cidr string) error {
 		LinkIndex: mon.linkIndex,
 		Dst:       dst,
 	}
-
 	return netlink.RouteAdd(route)
 }
 
@@ -128,12 +137,11 @@ func (mon *AwsVPCMonitor) deleteVPCRoute(cidr string) (*ec2.DeleteRouteOutput, e
 		RouteTableId:         &mon.routeTableID,
 		DestinationCidrBlock: &cidr,
 	}
-
 	return mon.ec2.DeleteRoute(route)
 }
 
 func (mon *AwsVPCMonitor) deleteHostRoute(cidr string) error {
-	dst, err := parseIP(cidr)
+	dst, err := parseCIDR(cidr)
 	if err != nil {
 		return err
 	}
@@ -141,13 +149,14 @@ func (mon *AwsVPCMonitor) deleteHostRoute(cidr string) error {
 		LinkIndex: mon.linkIndex,
 		Dst:       dst,
 	}
-
 	return netlink.RouteDel(route)
 }
 
 // Helpers
 
-func filterSameCIDRs(old, new []address.CIDR) (filteredOld, filteredNew []address.CIDR) {
+// filterOutSameCIDRs filters out CIDR ranges which are contained in both new
+// and old slices.
+func filterOutSameCIDRs(old, new []address.CIDR) (filteredOld, filteredNew []address.CIDR) {
 	i, j := 0, 0
 	for i < len(old) && j < len(new) {
 		switch {
@@ -169,8 +178,8 @@ func filterSameCIDRs(old, new []address.CIDR) (filteredOld, filteredNew []addres
 	return filteredOld, filteredNew
 }
 
-func parseIP(body string) (*net.IPNet, error) {
-	ip, ipnet, err := net.ParseCIDR(string(body))
+func parseCIDR(cidr string) (*net.IPNet, error) {
+	ip, ipnet, err := net.ParseCIDR(cidr)
 	if err != nil {
 		return nil, err
 	}

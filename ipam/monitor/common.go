@@ -10,5 +10,5 @@ type Monitor interface {
 	//
 	// {old,new}Ranges correspond to address ranges owned by a peer which
 	// executes the method.
-	HandleUpdate(oldRanges, newRanges []address.Range)
+	HandleUpdate(oldRanges, newRanges []address.Range) error
 }

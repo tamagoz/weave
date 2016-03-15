@@ -10,6 +10,6 @@ func NewNullMonitor() *NullMonitor {
 	return &NullMonitor{}
 }
 
-func (m *NullMonitor) HandleUpdate(oldRanges, newRanges []address.Range) {
-	// do nothing
+func (m *NullMonitor) HandleUpdate(oldRanges, newRanges []address.Range) error {
+	return nil
 }

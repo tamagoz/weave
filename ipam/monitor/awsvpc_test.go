@@ -25,25 +25,25 @@ var (
 func TestFilterNoChanges(t *testing.T) {
 	old := []address.CIDR{r0to255}
 	new := []address.CIDR{r0to255}
-	fOld, fNew := filterSameCIDRs(old, new)
+	fOld, fNew := filterOutSameCIDRs(old, new)
 	require.Len(t, fOld, 0, "")
 	require.Len(t, fNew, 0, "")
 
 	old = []address.CIDR{r0to255}
 	new = []address.CIDR{r0to3, r128to255}
-	fOld, fNew = filterSameCIDRs(old, new)
+	fOld, fNew = filterOutSameCIDRs(old, new)
 	require.Equal(t, old, fOld, "")
 	require.Equal(t, new, fNew, "")
 
 	old = []address.CIDR{r0to255}
 	new = []address.CIDR{r128to255}
-	fOld, fNew = filterSameCIDRs(old, new)
+	fOld, fNew = filterOutSameCIDRs(old, new)
 	require.Equal(t, old, fOld, "")
 	require.Equal(t, new, fNew, "")
 
 	old = []address.CIDR{r0to255}
 	new = []address.CIDR{r0to3}
-	fOld, fNew = filterSameCIDRs(old, new)
+	fOld, fNew = filterOutSameCIDRs(old, new)
 	require.Equal(t, old, fOld, "")
 	require.Equal(t, new, fNew, "")
 }
@@ -51,7 +51,7 @@ func TestFilterNoChanges(t *testing.T) {
 func TestFilter(t *testing.T) {
 	old := []address.CIDR{r0to3, r18to19, r22to23, r24to27}
 	new := []address.CIDR{r2to3, r12to13, r18to19, r1dot0to255}
-	fOld, fNew := filterSameCIDRs(old, new)
+	fOld, fNew := filterOutSameCIDRs(old, new)
 	require.Equal(t, []address.CIDR{r0to3, r22to23, r24to27}, fOld, "")
 	require.Equal(t, []address.CIDR{r2to3, r12to13, r1dot0to255}, fNew, "")
 }

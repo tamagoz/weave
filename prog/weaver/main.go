@@ -383,11 +383,16 @@ func createAllocator(router *mesh.Router, ipRangeStr string, defaultSubnetStr st
 	}
 
 	var mon monitor.Monitor
+	// To avoid possible shadowing later on
+	var err error
 	mon = monitor.NewNullMonitor()
 	isCIDRAligned := false
 	if useAWSVPC {
 		Log.Infoln("Using AWS VPC monitor")
-		mon = monitor.NewAwsVPCMonitor(awsRouteTableID)
+		mon, err = monitor.NewAwsVPCMonitor(awsRouteTableID)
+		if err != nil {
+			Log.Fatalf("Cannot start NewAwsVPCMonitor due to %s", err)
+		}
 		isCIDRAligned = true
 	}
 	allocator := ipam.NewAllocator(router.Ourself.Peer.Name, router.Ourself.Peer.UID, router.Ourself.Peer.NickName, ipRange.Range(), quorum, db, isKnownPeer,
