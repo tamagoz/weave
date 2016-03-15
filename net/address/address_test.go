@@ -11,6 +11,11 @@ func ip(s string) Address {
 	return addr
 }
 
+func cidr(s string) CIDR {
+	c, _ := ParseCIDR(s)
+	return c
+}
+
 func TestCIDRs(t *testing.T) {
 	start := ip("192.168.1.42")
 	end := ip("192.168.2.42")
@@ -47,6 +52,10 @@ func TestSingleCIDR(t *testing.T) {
 
 	require.Equal(t, len(cidrs), 1)
 	require.Equal(t, expectedCIDR, cidrs[0])
+
+	r = Range{ip("10.0.0.2"), ip("10.0.0.9")}
+	expectedCIDRs := []CIDR{cidr("10.0.0.2/31"), cidr("10.0.0.4/30"), cidr("10.0.0.8/32")}
+	require.Equal(t, expectedCIDRs, r.CIDRs(), "")
 }
 
 func TestIsCIDR(t *testing.T) {
@@ -67,4 +76,10 @@ func TestHalve(t *testing.T) {
 	require.True(t, ok, "")
 	require.Equal(t, "10.0.0.0/25", a.String(), "")
 	require.Equal(t, "10.0.0.128/25", b.String(), "")
+}
+
+func TestCIDRStartAndEnd(t *testing.T) {
+	cidr, _ := ParseCIDR("10.0.0.0/24")
+	require.Equal(t, ip("10.0.0.0"), cidr.Start(), "")
+	require.Equal(t, ip("10.0.0.255"), cidr.End(), "")
 }
