@@ -139,7 +139,6 @@ func main() {
 
 	mflag.StringVar(&trustedSubnetStr, []string{"-trusted-subnets"}, "", "Comma-separated list of trusted subnets in CIDR notation")
 	mflag.BoolVar(&useAWSVPC, []string{"#awsvpc", "-awsvpc"}, false, "use AWS VPC for routing")
-	mflag.StringVar(&awsRouteTableID, []string{"#aws-routetableid", "-aws-routetableid"}, "", "AWS VPC Route Table Id")
 
 	// crude way of detecting that we probably have been started in a
 	// container, with `weave launch` --> suppress misleading paths in
@@ -389,7 +388,7 @@ func createAllocator(router *mesh.Router, ipRangeStr string, defaultSubnetStr st
 	isCIDRAligned := false
 	if useAWSVPC {
 		Log.Infoln("Using AWS VPC monitor")
-		mon, err = monitor.NewAwsVPCMonitor(awsRouteTableID)
+		mon, err = monitor.NewAWSVPCMonitor()
 		if err != nil {
 			Log.Fatalf("Cannot start NewAwsVPCMonitor due to %s", err)
 		}

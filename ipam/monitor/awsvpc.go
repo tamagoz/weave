@@ -16,47 +16,49 @@ import (
 	"github.com/weaveworks/weave/net/address"
 )
 
-type AwsVPCMonitor struct {
+type AWSVPCMonitor struct {
 	ec2          *ec2.EC2
 	instanceID   string
 	routeTableID string
 	linkIndex    int
 }
 
-// NewAwsVPCMonitor creates and initialises AWS VPC based monitor.
+const (
+	bridgeIfName = "weave"
+)
+
+// NewAWSVPCMonitor creates and initialises AWS VPC based monitor.
 //
 // The monitor updates AWS VPC and host route tables when any changes to allocated
 // address ranges owner by a peer have been committed.
-func NewAwsVPCMonitor(routeTableID string) (*AwsVPCMonitor, error) {
-	// TODO(mp) add detect mechanism for the routerTableId
+func NewAWSVPCMonitor() (*AWSVPCMonitor, error) {
 	var err error
 	session := session.New()
-	mon := &AwsVPCMonitor{}
+	mon := &AWSVPCMonitor{}
 
-	if routeTableID == "" {
-		return nil, fmt.Errorf("routeTableID cannot be empty")
-	}
-	mon.routeTableID = routeTableID
-
-	// Detect host (peer) Instance ID and Region
+	// Detect region and instance id
 	meta := ec2metadata.New(session)
 	mon.instanceID, err = meta.GetMetadata("instance-id")
 	if err != nil {
-		return nil, fmt.Errorf("cannot detect instance-id due to %s", err)
+		return nil, fmt.Errorf("cannot detect instance-id: %s", err)
 	}
 	region, err := meta.Region()
 	if err != nil {
-		return nil, fmt.Errorf("cannot detect region due to %s", err)
+		return nil, fmt.Errorf("cannot detect region: %s", err)
 	}
-	// Create EC2 session
+
 	mon.ec2 = ec2.New(session, aws.NewConfig().WithRegion(region))
 
+	routeTableID, err := mon.detectRouteTableID()
+	if err != nil {
+		return nil, err
+	}
+	mon.routeTableID = *routeTableID
+
 	// Detect Weave bridge link index
-	// TODO(mp) pass as an argument bridge name
-	bridgeIfName := "weave"
 	link, err := netlink.LinkByName(bridgeIfName)
 	if err != nil {
-		return nil, fmt.Errorf("cannot find \"%s\" interface", bridgeIfName)
+		return nil, fmt.Errorf("cannot find \"%s\" interface: %s", bridgeIfName, err)
 	}
 	mon.linkIndex = link.Attrs().Index
 
@@ -68,7 +70,7 @@ func NewAwsVPCMonitor(routeTableID string) (*AwsVPCMonitor, error) {
 }
 
 // HandleUpdate method updates the AWS VPC and the host route tables.
-func (mon *AwsVPCMonitor) HandleUpdate(old, new []address.Range) error {
+func (mon *AWSVPCMonitor) HandleUpdate(old, new []address.Range) error {
 	oldCIDRs, newCIDRs := filterOutSameCIDRs(address.NewCIDRs(old), address.NewCIDRs(new))
 
 	// It might make sense to do removal first and then add entries
@@ -79,17 +81,16 @@ func (mon *AwsVPCMonitor) HandleUpdate(old, new []address.Range) error {
 	// Add new entries
 	for _, cidr := range newCIDRs {
 		cidrStr := cidr.String()
-		common.Log.Debugf("Creating %s route to %s.", cidrStr, mon.instanceID)
-		out, err := mon.createVPCRoute(cidrStr)
+		common.Log.Debugf("Creating %s route to %s", cidrStr, mon.instanceID)
+		_, err := mon.createVPCRoute(cidrStr)
 		// TODO(mp) check for 50 routes limit
 		// TODO(mp) maybe check for auth related errors
 		if err != nil {
-			return fmt.Errorf("createVPCRoutes failed due to %s; details: %s",
-				err, out)
+			return fmt.Errorf("createVPCRoutes failed: %s", err)
 		}
 		err = mon.createHostRoute(cidrStr)
 		if err != nil {
-			return fmt.Errorf("createHostRoute failed due to %s", err)
+			return fmt.Errorf("createHostRoute failed: %s", err)
 		}
 	}
 
@@ -97,21 +98,20 @@ func (mon *AwsVPCMonitor) HandleUpdate(old, new []address.Range) error {
 	for _, cidr := range oldCIDRs {
 		cidrStr := cidr.String()
 		common.Log.Debugf("Removing %s route", cidrStr)
-		out, err := mon.deleteVPCRoute(cidrStr)
+		_, err := mon.deleteVPCRoute(cidrStr)
 		if err != nil {
-			return fmt.Errorf("deleteVPCRoute failed due to %s; details: %s",
-				err, out)
+			return fmt.Errorf("deleteVPCRoute failed: %s", err)
 		}
 		err = mon.deleteHostRoute(cidrStr)
 		if err != nil {
-			return fmt.Errorf("deleteHostRoute failed due to %s", err)
+			return fmt.Errorf("deleteHostRoute failed: %s", err)
 		}
 	}
 
 	return nil
 }
 
-func (mon *AwsVPCMonitor) createVPCRoute(cidr string) (*ec2.CreateRouteOutput, error) {
+func (mon *AWSVPCMonitor) createVPCRoute(cidr string) (*ec2.CreateRouteOutput, error) {
 	route := &ec2.CreateRouteInput{
 		RouteTableId:         &mon.routeTableID,
 		InstanceId:           &mon.instanceID,
@@ -120,7 +120,7 @@ func (mon *AwsVPCMonitor) createVPCRoute(cidr string) (*ec2.CreateRouteOutput, e
 	return mon.ec2.CreateRoute(route)
 }
 
-func (mon *AwsVPCMonitor) createHostRoute(cidr string) error {
+func (mon *AWSVPCMonitor) createHostRoute(cidr string) error {
 	dst, err := parseCIDR(cidr)
 	if err != nil {
 		return err
@@ -132,7 +132,7 @@ func (mon *AwsVPCMonitor) createHostRoute(cidr string) error {
 	return netlink.RouteAdd(route)
 }
 
-func (mon *AwsVPCMonitor) deleteVPCRoute(cidr string) (*ec2.DeleteRouteOutput, error) {
+func (mon *AWSVPCMonitor) deleteVPCRoute(cidr string) (*ec2.DeleteRouteOutput, error) {
 	route := &ec2.DeleteRouteInput{
 		RouteTableId:         &mon.routeTableID,
 		DestinationCidrBlock: &cidr,
@@ -140,7 +140,7 @@ func (mon *AwsVPCMonitor) deleteVPCRoute(cidr string) (*ec2.DeleteRouteOutput, e
 	return mon.ec2.DeleteRoute(route)
 }
 
-func (mon *AwsVPCMonitor) deleteHostRoute(cidr string) error {
+func (mon *AWSVPCMonitor) deleteHostRoute(cidr string) error {
 	dst, err := parseCIDR(cidr)
 	if err != nil {
 		return err
@@ -150,6 +150,60 @@ func (mon *AwsVPCMonitor) deleteHostRoute(cidr string) error {
 		Dst:       dst,
 	}
 	return netlink.RouteDel(route)
+}
+
+func (mon *AWSVPCMonitor) detectRouteTableID() (*string, error) {
+	instancesParams := &ec2.DescribeInstancesInput{
+		InstanceIds: []*string{aws.String(mon.instanceID)},
+	}
+	instancesResp, err := mon.ec2.DescribeInstances(instancesParams)
+	if err != nil {
+		return nil, fmt.Errorf("DescribeInstances failed: %s", err)
+	}
+	if len(instancesResp.Reservations) == 0 ||
+		len(instancesResp.Reservations[0].Instances) == 0 {
+		return nil, fmt.Errorf(
+			"cannot find %s instance within reservations", mon.instanceID)
+	}
+	vpcID := instancesResp.Reservations[0].Instances[0].VpcId
+	subnetID := instancesResp.Reservations[0].Instances[0].SubnetId
+
+	tablesParams := &ec2.DescribeRouteTablesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("association.subnet-id"),
+				Values: []*string{subnetID},
+			},
+		},
+	}
+	tablesResp, err := mon.ec2.DescribeRouteTables(tablesParams)
+	if err != nil {
+		return nil, fmt.Errorf("DescribeRouteTables failed: %s", err)
+	}
+	if len(tablesResp.RouteTables) != 0 {
+		return tablesResp.RouteTables[0].RouteTableId, nil
+	}
+	tablesParams = &ec2.DescribeRouteTablesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("association.main"),
+				Values: []*string{aws.String("true")},
+			},
+			{
+				Name:   aws.String("vpc-id"),
+				Values: []*string{vpcID},
+			},
+		},
+	}
+	tablesResp, err = mon.ec2.DescribeRouteTables(tablesParams)
+	if err != nil {
+		return nil, fmt.Errorf("DescribeRouteTables failed: %s", err)
+	}
+	if len(tablesResp.RouteTables) != 0 {
+		return tablesResp.RouteTables[0].RouteTableId, nil
+	}
+
+	return nil, fmt.Errorf("cannot find routetable for %s instance", mon.instanceID)
 }
 
 // Helpers

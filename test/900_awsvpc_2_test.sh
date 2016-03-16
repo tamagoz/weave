@@ -44,12 +44,10 @@ cleanup_routetable $VPC_ROUTE_TABLE_ID
 
 WEAVE_NO_FASTDP=1 weave_on $HOST1 launch            \
         --ipalloc-range $UNIVERSE                   \
-        --awsvpc                                    \
-        --aws-routetableid=$VPC_ROUTE_TABLE_ID
+        --awsvpc
 WEAVE_NO_FASTDP=1 weave_on $HOST2 launch            \
         --ipalloc-range $UNIVERSE                   \
         --awsvpc                                    \
-        --aws-routetableid=$VPC_ROUTE_TABLE_ID      \
         $HOST1
 
 run_on $HOST1 "echo '1' | sudo tee --append /proc/sys/net/ipv4/conf/weave/proxy_arp"

@@ -362,7 +362,7 @@ func (alloc *Allocator) Shutdown() {
 		alloc.cancelOps(&alloc.pendingConsenses)
 		err := alloc.monitor.HandleUpdate(alloc.ring.OwnedAndMergedRanges(), nil)
 		if err != nil {
-			alloc.errorf("HandleUpdate failed due to %s", err)
+			alloc.errorf("HandleUpdate failed: %s", err)
 		}
 		if heir := alloc.pickPeerForTransfer(); heir != mesh.UnknownPeerName {
 			alloc.ring.Transfer(alloc.ourName, heir)
@@ -603,7 +603,7 @@ func (alloc *Allocator) createRing(peers []mesh.PeerName) {
 	// We assume that the peer has not possessed any address ranges before
 	err := alloc.monitor.HandleUpdate(nil, alloc.ring.OwnedAndMergedRanges())
 	if err != nil {
-		alloc.errorf("HandleUpdate failed due to %s", err)
+		alloc.errorf("HandleUpdate failed: %s", err)
 	}
 	alloc.gossip.GossipBroadcast(alloc.Gossip())
 	alloc.ringUpdated()
@@ -793,7 +793,7 @@ func (alloc *Allocator) donateSpace(r address.Range, to mesh.PeerName) {
 	alloc.persistRing()
 	err := alloc.monitor.HandleUpdate(oldRanges, alloc.ring.OwnedAndMergedRanges())
 	if err != nil {
-		alloc.errorf("HandleUpdate failed due to %s", err)
+		alloc.errorf("HandleUpdate failed: %s", err)
 	}
 }
 
