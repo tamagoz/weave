@@ -42,11 +42,11 @@ func NewAwsVPCMonitor(routeTableID string) (*AwsVPCMonitor, error) {
 	meta := ec2metadata.New(session)
 	mon.instanceID, err = meta.GetMetadata("instance-id")
 	if err != nil {
-		return nil, fmt.Errorf("Cannot detect instance-id due to %s", err)
+		return nil, fmt.Errorf("cannot detect instance-id due to %s", err)
 	}
 	region, err := meta.Region()
 	if err != nil {
-		return nil, fmt.Errorf("Cannot detect region due to %s", err)
+		return nil, fmt.Errorf("cannot detect region due to %s", err)
 	}
 	// Create EC2 session
 	mon.ec2 = ec2.New(session, aws.NewConfig().WithRegion(region))
@@ -56,7 +56,7 @@ func NewAwsVPCMonitor(routeTableID string) (*AwsVPCMonitor, error) {
 	bridgeIfName := "weave"
 	link, err := netlink.LinkByName(bridgeIfName)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot find \"%s\" interface", bridgeIfName)
+		return nil, fmt.Errorf("cannot find \"%s\" interface", bridgeIfName)
 	}
 	mon.linkIndex = link.Attrs().Index
 

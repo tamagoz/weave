@@ -36,17 +36,16 @@ function cleanup_routetable {
     rm $json
 }
 
-start_suite "AWSVPC"
+
+start_suite "AWS VPC"
 
 VPC_ROUTE_TABLE_ID=$(routetableid $HOST1)
 cleanup_routetable $VPC_ROUTE_TABLE_ID
 
-echo "Starting weave on $HOST1"
 WEAVE_NO_FASTDP=1 weave_on $HOST1 launch            \
         --ipalloc-range $UNIVERSE                   \
         --awsvpc                                    \
         --aws-routetableid=$VPC_ROUTE_TABLE_ID
-echo "Starting weave on $HOST2"
 WEAVE_NO_FASTDP=1 weave_on $HOST2 launch            \
         --ipalloc-range $UNIVERSE                   \
         --awsvpc                                    \
@@ -56,29 +55,21 @@ WEAVE_NO_FASTDP=1 weave_on $HOST2 launch            \
 run_on $HOST1 "echo '1' | sudo tee --append /proc/sys/net/ipv4/conf/weave/proxy_arp"
 run_on $HOST2 "echo '1' | sudo tee --append /proc/sys/net/ipv4/conf/weave/proxy_arp"
 
-trap "run_on $HOST1 docker logs weave" EXIT
-trap "run_on $HOST2 docker logs weave" EXIT
-
-echo "Weave expose $HOST1"
 weave_on $HOST1 expose
-echo "Weave expose $HOST2"
 weave_on $HOST2 expose
 
 run_on $HOST1 "sudo ip route delete $UNIVERSE || true"
 run_on $HOST2 "sudo ip route delete $UNIVERSE || true"
 
-echo "Starting container on $HOST1"
 start_container $HOST1 --name=c1
-
-echo "Starting container on $HOST2"
 start_container $HOST2 --name=c2
 
-echo "Pinging"
+# ARP update might take some time, so the first assertion might fail due to
+# ping timeout.
+exec_on $HOST1 c1 $PING $C2 || true
 assert_raises "exec_on $HOST1 c1 $PING $C2"
-assert_raises "exec_on $HOST1 c2 $PING $C1"
+assert_raises "exec_on $HOST2 c2 $PING $C1"
 
-echo "Done"
-
-trap "cleanup_routetable $VPC_ROUTE_TABLE_ID" EXIT
+cleanup_routetable $VPC_ROUTE_TABLE_ID
 
 end_suite
