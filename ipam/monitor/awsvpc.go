@@ -72,6 +72,7 @@ func NewAWSVPCMonitor() (*AWSVPCMonitor, error) {
 // HandleUpdate method updates the AWS VPC and the host route tables.
 func (mon *AWSVPCMonitor) HandleUpdate(old, new []address.Range) error {
 	oldCIDRs, newCIDRs := filterOutSameCIDRs(address.NewCIDRs(old), address.NewCIDRs(new))
+	common.Log.Debugf("HandleUpdate: old(%q) new(%q)", old, new)
 
 	// It might make sense to do removal first and then add entries
 	// because of the 50 routes limit. However, in such case a container might
@@ -128,6 +129,7 @@ func (mon *AWSVPCMonitor) createHostRoute(cidr string) error {
 	route := &netlink.Route{
 		LinkIndex: mon.linkIndex,
 		Dst:       dst,
+		Scope:     netlink.SCOPE_LINK,
 	}
 	return netlink.RouteAdd(route)
 }
@@ -148,6 +150,7 @@ func (mon *AWSVPCMonitor) deleteHostRoute(cidr string) error {
 	route := &netlink.Route{
 		LinkIndex: mon.linkIndex,
 		Dst:       dst,
+		Scope:     netlink.SCOPE_LINK,
 	}
 	return netlink.RouteDel(route)
 }
@@ -204,6 +207,21 @@ func (mon *AWSVPCMonitor) detectRouteTableID() (*string, error) {
 	}
 
 	return nil, fmt.Errorf("cannot find routetable for %s instance", mon.instanceID)
+}
+
+// Only for debugging
+func (mon *AWSVPCMonitor) printRoutes() error {
+	link, err := netlink.LinkByIndex(mon.linkIndex)
+	if err != nil {
+		return err
+	}
+	routes, err := netlink.RouteList(link, netlink.FAMILY_V4)
+	if err != nil {
+		return err
+	}
+
+	common.Log.Infof("Routes: %q", routes)
+	return nil
 }
 
 // Helpers

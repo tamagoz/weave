@@ -132,6 +132,7 @@ exec_remote() {
         -e PROXY_HOST="$PROXY_HOST" \
         -e COVERAGE \
         -e CHECKPOINT_DISABLE \
+        -e AWSVPC   \
         $WEAVEEXEC_DOCKER_ARGS $EXEC_IMAGE --local "$@"
 }
 
@@ -585,6 +586,36 @@ EOF
     configure_arp_cache $BRIDGE
 }
 
+expose() {
+    collect_cidr_args "$@"
+    shift $CIDR_ARG_COUNT
+    ipam_cidrs allocate_no_check_alive weave:expose $CIDR_ARGS
+    if [ $# -eq 0 ] ; then
+        FQDN=""
+    else
+        [ $# -eq 2 -a "$1" = "-h" ] || usage
+        FQDN="$2"
+    fi
+
+    create_bridge --without-ethtool
+    for CIDR in $ALL_CIDRS ; do
+        if ! ip addr show dev $BRIDGE | grep -qF $CIDR ; then
+            ip addr add dev $BRIDGE $CIDR
+            arp_update $BRIDGE $CIDR
+            add_iptables_rule nat WEAVE -d $CIDR ! -s $CIDR -j MASQUERADE
+            add_iptables_rule nat WEAVE -s $CIDR ! -d $CIDR -j MASQUERADE
+            # Remove a default route installed by the kernel, because awsvpc
+            # has installed it as well
+            if [ -n "$AWSVPC" ]; then
+                RCIDR=$(ip route list exact $CIDR proto kernel | head -n1 | cut -d ' ' -f1)
+                [ -n "$RCIDR" ] && ip route del dev $BRIDGE proto kernel $RCIDR
+            fi
+        fi
+        [ -n "$FQDN" ] && when_weave_running put_dns_fqdn_no_check_alive weave:expose $FQDN $CIDR
+    done
+    show_addrs $ALL_CIDRS
+}
+
 # create veth with ends $1-$2, and then invoke $3..., removing the
 # veth on failure. No-op of veth already exists.
 create_veth() {
@@ -637,6 +668,7 @@ init_bridge() {
         MAC=$(random_mac)
     fi
     ip link set dev $BRIDGE address $MAC
+
 
     # Attempting to set the bridge MTU to a high value directly
     # fails. Bridges take the lowest MTU of their interfaces. So
@@ -857,7 +889,9 @@ setup_router_iface_fastdp() {
 }
 
 setup_router_iface_bridge() {
-    create_veth $BRIDGE_IFNAME $PCAP_IFNAME add_iface_bridge $BRIDGE_IFNAME
+    if [ -z "$AWSVPC" ]; then
+        create_veth $BRIDGE_IFNAME $PCAP_IFNAME add_iface_bridge $BRIDGE_IFNAME
+    fi
 }
 
 setup_router_iface_bridged_fastdp() {
@@ -879,6 +913,12 @@ attach() {
         connect_container_to_bridge $CONTAINER_IFNAME || return 1
     fi
 
+    if [[ -n "$AWSVPC" && $(echo "$@" | wc -w) -gt 1 ]]; then
+        echo "AWSVPC is enabled, therefore only one address can be attached to" >&2
+        echo " the container" >&2
+        return 1
+    fi
+
     NEW_ADDRS=
     for ADDR in "$@" ; do
         if netnsenter ip addr show dev $CONTAINER_IFNAME | grep -F $ADDR >/dev/null ; then
@@ -886,10 +926,20 @@ attach() {
             continue
         fi
         netnsenter ip addr add $ADDR dev $CONTAINER_IFNAME || return 1
+        netnsenter ip link set $CONTAINER_IFNAME up || return 1
+        if [ -n "$AWSVPC" ]; then
+            BRIDGE_ADDR=$(ip -o -4 addr list $BRIDGE | awk '{print $4}' | sed 's/\/.*//')
+            [ -z "$BRIDGE_ADDR" ] && return 1
+            # TODO(mp) Probably better is to pass CIDR as a param to attach()
+            CIDR=$(netnsenter ip route list proto kernel dev $CONTAINER_IFNAME | head -n1 | cut -d ' ' -f1)
+            [ -z "$CIDR" ] && return 1
+            netnsenter ip route add dev $CONTAINER_IFNAME "$BRIDGE_ADDR/32" || return 1
+            netnsenter ip route del $CIDR || return 1
+            netnsenter ip route add $CIDR via $BRIDGE_ADDR || return 1
+        fi
         NEW_ADDRS="$NEW_ADDRS $ADDR"
     done
 
-    netnsenter ip link set $CONTAINER_IFNAME up || return 1
 
     for ADDR in $NEW_ADDRS ; do
         arp_update $CONTAINER_IFNAME $ADDR "netnsenter"
@@ -1595,6 +1645,12 @@ launch_router() {
                 NO_DNS_OPT="--no-dns"
                 ARGS="$ARGS $1"
                 ;;
+            --awsvpc)
+                # TODO(mp)
+                WEAVE_NO_FASTDP=1
+                AWSVPC_ARGS="--awsvpc"
+                AWSVPC=1
+                ;;
             *)
                 ARGS="$ARGS '$(echo "$1" | sed "s|'|'\"'\"'|g")'"
                 ;;
@@ -1629,11 +1685,13 @@ launch_router() {
         --ipalloc-range "$IPRANGE" \
         --dns-effective-listen-address $DOCKER_BRIDGE_IP \
         $DNS_ROUTER_OPTS $NO_DNS_OPT \
+        $AWSVPC_ARGS \
         --http-addr $HTTP_ADDR \
         "$@"
     setup_router_iface_$BRIDGE_TYPE
     wait_for_status $CONTAINER_NAME http_call $HTTP_ADDR
     [ -n "$ALREADY_RUNNING_CONTAINER" ] || attach_router
+    [ -z "$AWSVPC" ] || expose
 }
 
 # Recreate the parameter values that are set when the router is first launched
@@ -2097,26 +2155,7 @@ EOF
         dig @$DOCKER_BRIDGE_IP +short $1
         ;;
     expose)
-        collect_cidr_args "$@"
-        shift $CIDR_ARG_COUNT
-        ipam_cidrs allocate_no_check_alive weave:expose $CIDR_ARGS
-        if [ $# -eq 0 ] ; then
-            FQDN=""
-        else
-            [ $# -eq 2 -a "$1" = "-h" ] || usage
-            FQDN="$2"
-        fi
-        create_bridge --without-ethtool
-        for CIDR in $ALL_CIDRS ; do
-            if ! ip addr show dev $BRIDGE | grep -qF $CIDR ; then
-                ip addr add dev $BRIDGE $CIDR
-                arp_update $BRIDGE $CIDR
-                add_iptables_rule nat WEAVE -d $CIDR ! -s $CIDR -j MASQUERADE
-                add_iptables_rule nat WEAVE -s $CIDR ! -d $CIDR -j MASQUERADE
-            fi
-            [ -n "$FQDN" ] && when_weave_running put_dns_fqdn_no_check_alive weave:expose $FQDN $CIDR
-        done
-        show_addrs $ALL_CIDRS
+        expose "$@"
         ;;
     hide)
         collect_cidr_args "$@"
