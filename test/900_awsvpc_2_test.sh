@@ -50,21 +50,9 @@ WEAVE_NO_FASTDP=1 weave_on $HOST2 launch            \
         --awsvpc                                    \
         $HOST1
 
-run_on $HOST1 "echo '1' | sudo tee --append /proc/sys/net/ipv4/conf/weave/proxy_arp"
-run_on $HOST2 "echo '1' | sudo tee --append /proc/sys/net/ipv4/conf/weave/proxy_arp"
-
-weave_on $HOST1 expose
-weave_on $HOST2 expose
-
-run_on $HOST1 "sudo ip route delete $UNIVERSE || true"
-run_on $HOST2 "sudo ip route delete $UNIVERSE || true"
-
 start_container $HOST1 --name=c1
 start_container $HOST2 --name=c2
 
-# ARP update might take some time, so the first assertion might fail due to
-# ping timeout.
-exec_on $HOST1 c1 $PING $C2 || true
 assert_raises "exec_on $HOST1 c1 $PING $C2"
 assert_raises "exec_on $HOST2 c2 $PING $C1"
 

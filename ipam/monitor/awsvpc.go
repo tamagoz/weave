@@ -112,6 +112,10 @@ func (mon *AWSVPCMonitor) HandleUpdate(old, new []address.Range) error {
 	return nil
 }
 
+func (mon *AWSVPCMonitor) String() string {
+	return "awsvpc"
+}
+
 func (mon *AWSVPCMonitor) createVPCRoute(cidr string) (*ec2.CreateRouteOutput, error) {
 	route := &ec2.CreateRouteInput{
 		RouteTableId:         &mon.routeTableID,

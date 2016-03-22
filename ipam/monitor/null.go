@@ -13,3 +13,7 @@ func NewNullMonitor() *NullMonitor {
 func (m *NullMonitor) HandleUpdate(oldRanges, newRanges []address.Range) error {
 	return nil
 }
+
+func (m *NullMonitor) String() string {
+	return "null"
+}

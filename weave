@@ -616,6 +616,16 @@ expose() {
     show_addrs $ALL_CIDRS
 }
 
+report() {
+    if [ $# -gt 0 ] ; then
+        [ $# -eq 2 -a "$1" = "-f" ] || usage
+        call_weave GET /report --get --data-urlencode "format=$2"
+    else
+        call_weave GET /report -H 'Accept: application/json'
+    fi
+}
+
+
 # create veth with ends $1-$2, and then invoke $3..., removing the
 # veth on failure. No-op of veth already exists.
 create_veth() {
@@ -927,7 +937,7 @@ attach() {
         fi
         netnsenter ip addr add $ADDR dev $CONTAINER_IFNAME || return 1
         netnsenter ip link set $CONTAINER_IFNAME up || return 1
-        if [ -n "$AWSVPC" ]; then
+        if [ `report -f "{{.IPAM.Monitor}}"` == "awsvpc" ]; then
             BRIDGE_ADDR=$(ip -o -4 addr list $BRIDGE | awk '{print $4}' | sed 's/\/.*//')
             [ -z "$BRIDGE_ADDR" ] && return 1
             # TODO(mp) Probably better is to pass CIDR as a param to attach()
@@ -2009,12 +2019,7 @@ EOF
         [ $res -eq 0 ]
         ;;
     report)
-        if [ $# -gt 0 ] ; then
-            [ $# -eq 2 -a "$1" = "-f" ] || usage
-            call_weave GET /report --get --data-urlencode "format=$2"
-        else
-            call_weave GET /report -H 'Accept: application/json'
-        fi
+        report "$@"
         ;;
     run)
         dns_args "$@"

@@ -776,6 +776,10 @@ func (mon *testMonitor) HandleUpdate(old, new []address.Range) error {
 	return nil
 }
 
+func (mon *testMonitor) String() string {
+	return "test"
+}
+
 // Creates [start;end] address.Range.
 func addrRange(start, end string) address.Range {
 	return address.NewRange(ip(start), address.Subtract(ip(end)+1, ip(start)))
