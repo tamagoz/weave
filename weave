@@ -1601,17 +1601,13 @@ launch_router() {
     LAUNCHING_ROUTER=1
     check_forwarding_rules
     enforce_docker_bridge_addr_assign_type
-    create_bridge
-    docker_bridge_ip
-    # We set the router name to the bridge MAC, which in turn is
-    # derived from the system UUID (if available), and thus stable
-    # across reboots.
-    PEERNAME=$(cat /sys/class/net/$BRIDGE/address)
+
     # backward compatibility...
     if is_cidr "$1" ; then
         echo "WARNING: $1 parameter ignored; 'weave launch' no longer takes a CIDR as the first parameter" >&2
         shift 1
     fi
+
     CONTAINER_PORT=$PORT
     ARGS=
     IPRANGE=
@@ -1656,7 +1652,6 @@ launch_router() {
                 ARGS="$ARGS $1"
                 ;;
             --awsvpc)
-                # TODO(mp)
                 WEAVE_NO_FASTDP=1
                 AWSVPC_ARGS="--awsvpc"
                 AWSVPC=1
@@ -1668,6 +1663,14 @@ launch_router() {
         shift
     done
     eval "set -- $ARGS"
+
+    create_bridge
+    docker_bridge_ip
+    # We set the router name to the bridge MAC, which in turn is
+    # derived from the system UUID (if available), and thus stable
+    # across reboots.
+    PEERNAME=$(cat /sys/class/net/$BRIDGE/address)
+
     if [ -z "$IPRANGE_SPECIFIED" ] ; then
         IPRANGE="10.32.0.0/12"
         if ! check_overlap $IPRANGE ; then
