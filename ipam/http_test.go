@@ -86,7 +86,6 @@ func TestHttp(t *testing.T) {
 
 	// Allocate an address in each subnet, and check we got what we expected
 	cidr1a := HTTPPost(t, allocURL(port, testCIDR1, containerID))
-	t.Log(allocURL(port, testCIDR1, containerID))
 	require.Equal(t, testAddr1, cidr1a, "address")
 	cidr2a := HTTPPost(t, allocURL(port, testCIDR2, containerID))
 	require.Equal(t, testAddr2, cidr2a, "address")

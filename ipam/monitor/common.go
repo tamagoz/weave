@@ -11,6 +11,6 @@ type Monitor interface {
 	// {old,new}Ranges correspond to address ranges owned by a peer which
 	// executes the method.
 	HandleUpdate(oldRanges, newRanges []address.Range) error
-	// String returns a user-friendly name of the monitor
+	// String returns a user-friendly name of the monitor.
 	String() string
 }

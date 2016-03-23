@@ -75,7 +75,7 @@ func (r Range) CIDRs() []CIDR {
 		// Once we found such, apply it by OR'ing
 		for mask > 0 {
 			tmpMask := mask << 1
-			// Check whether mask neither too short nor to long
+			// Check whether mask neither too short nor too long
 			if (start&tmpMask) != start || (start|^tmpMask) > end {
 				break
 			}

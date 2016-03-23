@@ -187,10 +187,10 @@ func (s *Space) findNonCIDRDonation(r address.Range) (address.Range, bool) {
 // ranges.
 //
 // When searching for ranges we tend to find such that it would require the
-// least amount of splits. The strategy is a direct outcome of AWS VPC limitation for
-// number of route entries per table.
+// least amount of splits. The strategy is a direct outcome of the AWS VPC
+// limitation for number of route entries per table.
 //
-// An algorithm for search is the following:
+// The algorithm for search is the following:
 //
 // 1) Filter out non-free ranges from the cidrs parameter.
 // 2) Return the second half of the biggest range.

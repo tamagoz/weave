@@ -237,7 +237,9 @@ func main() {
 		Log.Fatal("At most one of --observer and --init-peer-count must be specified.")
 	}
 	if iprangeCIDR != "" {
-		allocator, defaultSubnet = createAllocator(router.Router, iprangeCIDR, ipsubnetCIDR, determineQuorum(observer, peerCount, peers), db, isKnownPeer,
+		allocator, defaultSubnet = createAllocator(router.Router,
+			iprangeCIDR, ipsubnetCIDR,
+			determineQuorum(observer, peerCount, peers), db, isKnownPeer,
 			useAWSVPC, awsRouteTableID)
 		observeContainers(allocator)
 		ids, err := dockerCli.AllContainerIDs()
@@ -370,8 +372,13 @@ func parseAndCheckCIDR(cidrStr string) address.CIDR {
 	return cidr
 }
 
-func createAllocator(router *mesh.Router, ipRangeStr string, defaultSubnetStr string, quorum uint, db db.DB, isKnownPeer func(mesh.PeerName) bool,
+func createAllocator(router *mesh.Router, ipRangeStr string, defaultSubnetStr string,
+	quorum uint, db db.DB, isKnownPeer func(mesh.PeerName) bool,
 	useAWSVPC bool, awsRouteTableID string) (*ipam.Allocator, address.CIDR) {
+
+	var mon monitor.Monitor
+	isCIDRAligned := false
+
 	ipRange := parseAndCheckCIDR(ipRangeStr)
 	defaultSubnet := ipRange
 	if defaultSubnetStr != "" {
@@ -381,20 +388,19 @@ func createAllocator(router *mesh.Router, ipRangeStr string, defaultSubnetStr st
 		}
 	}
 
-	var mon monitor.Monitor
-	// To avoid possible shadowing later on
-	var err error
-	mon = monitor.NewNullMonitor()
-	isCIDRAligned := false
 	if useAWSVPC {
 		Log.Infoln("Using AWS VPC monitor")
-		mon, err = monitor.NewAWSVPCMonitor()
+		mon, err := monitor.NewAWSVPCMonitor()
 		if err != nil {
 			Log.Fatalf("Cannot start NewAwsVPCMonitor due to %s", err)
 		}
 		isCIDRAligned = true
+	} else {
+		mon = monitor.NewNullMonitor()
 	}
-	allocator := ipam.NewAllocator(router.Ourself.Peer.Name, router.Ourself.Peer.UID, router.Ourself.Peer.NickName, ipRange.Range(), quorum, db, isKnownPeer,
+
+	allocator := ipam.NewAllocator(router.Ourself.Peer.Name, router.Ourself.Peer.UID,
+		router.Ourself.Peer.NickName, ipRange.Range(), quorum, db, isKnownPeer,
 		isCIDRAligned, mon)
 
 	allocator.SetInterfaces(router.NewGossip("IPallocation", allocator))

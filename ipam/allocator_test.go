@@ -23,13 +23,6 @@ const (
 
 func returnFalse() bool { return false }
 
-func TestAllocBroadcastAddr(t *testing.T) {
-	const universe = "10.20.0.0/24"
-	alloc, subnet := makeAllocatorWithMockGossip(t, "01:00:00:01:00:00", universe, 1)
-	t.Log("alloc", alloc)
-	t.Log("subnet", subnet)
-}
-
 func TestAllocFree(t *testing.T) {
 	const (
 		container1 = "abcdef"
