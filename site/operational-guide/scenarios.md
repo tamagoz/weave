@@ -63,21 +63,25 @@ gossip discovery via host-B; if the whole network rebooted and host-B
 did not come back up then host-A and host-C would not connect to each
 other.)
 
+### Stopping a Peer
+
+A peer can be stopped temporarily, leaving its persisted data intact:
+
+    weave stop
+
 ### Removing a Peer
 
 On peer to be removed:
 
     weave reset
 
-> Author's Note: releases address space and removes the containers +
-> persistence so that they won't restart on a reboot
-
-On each remaining peer:
+Then optionally on each remaining peer:
 
     weave forget <removed peer>
 
-> Author's Note: stops reconnection attempts and prevents further
-> connection attempts after restart
+This step is not mandatory, but it will eliminate log noise and
+spurious network traffic by stopping reconnection attempts and
+preventing further connection attempts after restart.
 
 ## Uniform Fixed Cluster
 
@@ -124,7 +128,7 @@ On each existing peer:
 
     weave connect <new peer>
 
-### Removing a Node
+### Removing a Peer
 
 On peer to be removed:
 

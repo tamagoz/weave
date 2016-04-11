@@ -16,7 +16,7 @@ details.
 > Author's Note: I'm going to pull the complete systemd doc into this
 > section
 
-## Recovering Lost IPAM Space
+## Detecting Lost IPAM Space
 
 The recommended way of removing a peer is to run `weave reset` on that
 peer before the underlying host is decommissioned or repurposed - this
@@ -30,12 +30,31 @@ may not be successful, or indeed possible:
   reset` - for example due to a hardware failure or other unplanned
   termination
 
-In either case the remaining peers will all consider the dead peer's
+In some cases you may already be aware of the problem, as you were
+unable to execute `weave reset` successfully or because you know
+through other channels that the host has died - in these cases you can
+proceed straight to the section on reclaiming lost space.
+
+However in some scenarios (for example when using autoscaling and
+spot-instances that can be destroyed without notice) it may not be
+obvious that space has been lost, in which case you can check for it
+periodically with the following command on any peer:
+
+    weave status ipam
+
+This will list the names of unreachable peers; if you are satisifed
+that they are truly gone, rather than temporarily unreachable due to a
+partition, you can reclaim their space by following the advice in the
+next section.
+
+## Reclaiming Lost IPAM Space
+
+When a peer dies unexpectedly the remaining peers will consider its
 address space to be unavailable even after it has remained unreachable
 for prolonged periods; there is no universally applicable time limit
-after which a peer could decide unilaterally that it is safe to
-appropriate the space for itself, and so an adminstrative action is
-required to reclaim it.
+after which one of the remaining peers could decide unilaterally that
+it is safe to appropriate the space for itself, and so an
+adminstrative action is required to reclaim it.
 
 The `weave rmpeer` command is provided to perform this task, and must
 be executed on one of the remaining peers. That peer will take
