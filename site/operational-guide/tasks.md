@@ -1,6 +1,6 @@
 ---
 title: Administrative Tasks
-menu_order: 30
+menu_order: 60
 ---
 ## Configuring Weave to Start Automatically on Boot
 
