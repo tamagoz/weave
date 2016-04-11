@@ -4,7 +4,8 @@ menu_order: 40
 ---
 An autoscaling configuration begins with a small fixed cluster:
 
-* Configured as per the Uniform Fixed Cluster scenario
+* Configured as per the [Uniform Fixed Cluster](/site/operational-guide/uniform-fixed-cluster.md)
+  scenario
 * Hosted on reserved or protected instances to ensure long-term
   stability
 * Ideally sized at a minimum of three or five nodes (you can make your
