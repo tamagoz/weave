@@ -140,14 +140,18 @@ On each remaining peer:
 
 ## Autoscaling
 
-This configuration builds on an existing fixed cluster (for example of
-reserved or protected instances) to add/remove peers based on scaling
-events:
+An autoscaling configuration begins with a small fixed cluster:
 
-* Arbitrary numbers of dynamic peers can be added or removed
-  concurrently as desired
-* No configuration changes are required to the fixed cluster on
-  scaling events
+* Configured as per the Uniform Fixed Cluster scenario
+* Hosted on reserved or protected instances to ensure long-term
+  stability
+* Ideally sized at a minimum of three or five nodes (NB you can make
+  your fixed cluster bigger to accomodate base load as required; we're
+  only specifying a minimum here in the interests of resilience)
+
+Building on this foundation, arbitrary numbers of dynamic peers can be
+added or removed concurrently as desired, without requiring any
+changes to the configuration of the fixed cluster.
 
 ### Scale-out
 
