@@ -11,9 +11,6 @@ This scenario is intended for evaluation, not production use. The
 resulting weave network will survive host reboots without the use of a
 systemd unit as long as Docker is configured to start on boot.
 
-> Author's Note: reboot assertion assumes #2029 router/proxy restart
-> policy PR is merged
-
 ### Bootstrapping
 
 On initial peer:
@@ -100,8 +97,6 @@ A uniform fixed cluster has the following characteristics:
 
 This scenario describes a production deployment of a fixed number of
 N nodes (N=1 in the degenerate case).
-
-> Author's Note: N=1 requires #1881 to be addressed.
 
 On each peer:
 
