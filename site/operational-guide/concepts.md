@@ -11,8 +11,7 @@ scenarios.
 
 ## Peer
 
-A peer is a running instance of Weave Net. Normally you would have one
-peer on each host.
+A peer is a running instance of Weave Net, typically one per host.
 
 ## Peer Name
 
@@ -24,24 +23,23 @@ name' is used for various purposes:
 * Recording the origin peer of DNS entries
 * Recording ownership of IP address ranges
 
-It is desirable for the peer name to be as stable as possible across
-restarts. Consequently when the router is launched on a host it
+Whilst it is desirable for the peer name to remain stable across
+restarts, it is essential that it is unique - if two or more peers
+share the same name chaos will ensue, including but not limited to
+double allocation of addresses and inability to route packets on the
+overlay network. Consequently when the router is launched on a host it
 derives its peer name in order of preference:
 
-* From the command line; specifier is responsible for uniqueness and
+* From the command line; user is responsible for uniqueness and
   stability
-* From the BIOS product UUID, which is generally stable across restarts
-  and unique across different physical hardware and certain cloned VMs
+* From the BIOS product UUID, which is generally stable across
+  restarts and unique across different physical hardware and certain
+  cloned VMs
 * From the hypervisor UUID, which is generally stable across restarts
   and unique across VMs which do not provide access to a BIOS product
   UUID
-* From a random value, unique across different physical hardware and
-  cloned VMs but not stable across restarts
-
-More important still than the stability constraint is uniqueness; if
-two or more peers share the same name chaos will ensue, including but
-not limited to double allocation of addresses and inability to route
-packets on the overlay network.
+* From a random value, practically unique across different physical
+  hardware and cloned VMs but not stable across restarts
 
 The best strategy for assigning peer names depends on the type and
 method of your particular deployment and is discussed in more detail

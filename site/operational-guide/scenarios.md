@@ -145,9 +145,9 @@ An autoscaling configuration begins with a small fixed cluster:
 * Configured as per the Uniform Fixed Cluster scenario
 * Hosted on reserved or protected instances to ensure long-term
   stability
-* Ideally sized at a minimum of three or five nodes (NB you can make
-  your fixed cluster bigger to accomodate base load as required; we're
-  only specifying a minimum here in the interests of resilience)
+* Ideally sized at a minimum of three or five nodes (you can make your
+  fixed cluster bigger to accomodate base load as required; a minimum
+  is specified here in the interests of resilience only)
 
 Building on this foundation, arbitrary numbers of dynamic peers can be
 added or removed concurrently as desired, without requiring any
