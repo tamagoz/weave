@@ -55,10 +55,10 @@ discovery is enabled by default.
 
 A network partition is a transient condition whereby some arbitrary
 subsets of peers are unable to communicate with each other for the
-duration - perhaps because a router has failed, or a fibre optic line
-severed. Weave is designed to allow peers and their containers to make
-maximum safe progress under conditions of partition, healing
-automatically once the partition is over.
+duration - perhaps because a network switch has failed, or a fibre
+optic line severed. Weave is designed to allow peers and their
+containers to make maximum safe progress under conditions of
+partition, healing automatically once the partition is over.
 
 ## IP Address Manager (IPAM)
 
