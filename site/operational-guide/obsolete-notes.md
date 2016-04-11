@@ -1,3 +1,7 @@
+---
+title: Obsolete Notes
+menu_order: 999
+---
 # Concepts
 ## Installing Weave
 
