@@ -113,20 +113,10 @@ peer.
 
 Then on _any_ peer:
 
-    weave status
-
-To check that all connections have established successfully followed
-by:
-
     weave consense
 
 To force consensus - future IP address allocations can now continue
 under partition and it is safe to add new peers.
-
-> Author's Note: the rationale for `weave status` is to introduce an
-> opportunity for the user to resolve any initial connectivity
-> problems before consensus - this ensures the ring is divided as
-> evenly as possible, delaying the need for donations
 
 ### Adding a Peer
 

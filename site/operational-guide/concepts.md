@@ -11,7 +11,8 @@ scenarios.
 
 ## Peer
 
-A peer is a host on which you have installed weave.
+A peer is a running instance of Weave Net. Normally you would have one
+peer on each host.
 
 ## Peer Name
 
@@ -23,25 +24,24 @@ name' is used for various purposes:
 * Recording the origin peer of DNS entries
 * Recording ownership of IP address ranges
 
-Whilst the first two uses tolerate the peer name changing on router
-restarts, the third use means that address space can be 'lost' (e.g.
-recorded as being owned by a now non-existent peer name) and so it is
-desirable for the peer name to be as stable as possible across
+It is desirable for the peer name to be as stable as possible across
 restarts. Consequently when the router is launched on a host it
 derives its peer name in order of preference:
 
 * From the command line; specifier is responsible for uniqueness and
   stability
 * From the BIOS product UUID, which is generally stable across restarts
-  and unique across different physical hardware and cloned VMs
+  and unique across different physical hardware and certain cloned VMs
+* From the hypervisor UUID, which is generally stable across restarts
+  and unique across VMs which do not provide access to a BIOS product
+  UUID
 * From a random value, unique across different physical hardware and
   cloned VMs but not stable across restarts
 
-More important still than the stability constraint is uniqueness;
-address space lost due to a peer name change can be recovered with an
-administrative action, but if two or more peers share the same name
-chaos will ensue, including but not limited to double allocation of
-addresses and inability to route packets on the overlay network.
+More important still than the stability constraint is uniqueness; if
+two or more peers share the same name chaos will ensue, including but
+not limited to double allocation of addresses and inability to route
+packets on the overlay network.
 
 The best strategy for assigning peer names depends on the type and
 method of your particular deployment and is discussed in more detail
@@ -56,10 +56,11 @@ discovery is enabled by default.
 ## Network Partition
 
 A network partition is a transient condition whereby some arbitrary
-subsets of peers are unable to communicate with each other. Weave is
-designed to allow peers and their containers to make maximum safe
-progress under conditions of partition, healing automatically once the
-partition is over.
+subsets of peers are unable to communicate with each other for the
+duration - perhaps because a router has failed, or a fibre optic line
+severed. Weave is designed to allow peers and their containers to make
+maximum safe progress under conditions of partition, healing
+automatically once the partition is over.
 
 ## IP Address Manager (IPAM)
 
@@ -121,14 +122,11 @@ scenarios.
 
 ## Persistence
 
-If you relaunch weave with _exactly_ the same parameters as the
-previous invocation (as will happen if it is restarted automatically
-by Docker), certain information is remembered:
+Certain information is remembered between launches of weave (for
+example across reboots):
 
-* Runtime modifications to the target peer list enacted via the
-  command line
 * The division of the IP allocation range amongst peers
 * Allocation of addresses to containers
 
-The persistence of this information is managed transparently inside
-the router container but can be destroyed explicitly if necessary.
+The persistence of this information is managed transparently in a
+volume container but can be destroyed explicitly if necessary.
