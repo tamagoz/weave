@@ -9,6 +9,14 @@ scenarios.
 > Author's Note: I have deliberately excluded any mention of
 > weave command syntax in this section
 
+
+## Host
+
+For the purposes of this documentation we consider a host to be an
+installation of the Linux operating system which is running an
+instance of the Docker Engine. It may be executing directly on bare
+hardware or inside a virtual machine.
+
 ## Peer
 
 A peer is a running instance of Weave Net, typically one per host.
