@@ -79,7 +79,7 @@ When a new network is formed an initial division of the IP allocation
 range must be made. Two (mutually exclusive) mechanisms with different
 tradeoffs are provided to perform this task: seeding and consensus.
 
-## Seeding
+### Seeding
 
 Seeding requires each peer to be told the list of peer names amongst
 which the address space is to be divided initially. There are some
@@ -99,29 +99,28 @@ constraints and consequences:
 Example configurations are given in the section on deployment
 scenarios.
 
-## Consensus
+### Consensus
 
 Alternatively, when a new network is formed for the first time peers
 can be configured to co-ordinate amongst themselves to automatically
 divide up the IP allocation range - this process is known as
-consensus, and is implemented via a leader election algorithm.
-Consensus based bootstrapping requires each peer to be told the total
-number of expected peers (the 'initial peer count') in order to avoid
-small independent groups of peers from electing different leaders
-under conditions of partition.
+consensus, and is implemented via an election algorithm.  Consensus
+based bootstrapping requires each peer to be told the total number of
+expected peers (the 'initial peer count') in order to avoid small
+independent groups of peers from electing different leaders under
+conditions of partition.
 
 Example configurations are given in the section on deployment
 scenarios.
 
-## Electors and Observers
+### Observers
 
-When using consensus-based configuration then by default every peer
-included in the network is a candidate for leadership. This does not
-always make sense (for example when adding relatively short lived
-peers to an existing cluster in response to a scale-out event) and so
-an option is provided to start a peer as an _observer_. Such peers
-will not put themselves forward as leaders, but will abide by the
-results of an election amongst elector-peers.
+Finally, an option is provided to start a peer as an _observer_. Such
+peers do not require either a seed peer name list nor an initial peer
+count; instead they rely on the existence of other peers in the
+cluster which have been so configured. When an observer needs address
+space, it will ask for it from one of the peers which partook of the
+initial division, triggering consensus if necessary.
 
 Example configurations are given in the section on deployment
 scenarios.
