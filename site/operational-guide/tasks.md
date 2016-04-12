@@ -10,11 +10,8 @@ once and your system is configured to start Docker on boot then weave
 will be started automatically on system restarts.
 
 If you're aiming for a non-interactive installation, you can use
-systemd to launch weave after Docker - see [systemd docs](TODO) for
+systemd to launch weave after Docker - see [systemd docs](/site/systemd.md) for
 details.
-
-> Author's Note: I'm going to pull the complete systemd doc into this
-> section
 
 ## Detecting Lost IPAM Space
 
@@ -73,11 +70,11 @@ On each peer in turn:
 * Download the new weave script to a temporary location e.g.
   `/path/to/new/weave`
 * Pull the new images with `/path/to/new/weave setup`
-* Stop the old weave with `weave stop` (or `systemctl weave stop` if
+* Stop the old weave with `weave stop` (or `systemctl stop weave` if
   you're using a systemd unit file)
 * Replace the existing script with the new one
 * Start the new weave with `weave launch <existing peer list>` (or
-  `systemctl weave start` if you're using a systemd unit file)
+  `systemctl start weave` if you're using a systemd unit file)
 
 Always check the release notes for specific versions in case there are
 any special caveats or deviations from the standard procedure.
