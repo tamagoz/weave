@@ -49,9 +49,9 @@ derives its peer name in order of preference:
 * From a random value, practically unique across different physical
   hardware and cloned VMs but not stable across restarts
 
-The best strategy for assigning peer names depends on the type and
-method of your particular deployment and is discussed in more detail
-below.
+The appropriate strategy for assigning peer names depends on the type
+and method of your particular deployment and is discussed in more
+detail below.
 
 ## Peer Discovery
 
