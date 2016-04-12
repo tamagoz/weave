@@ -51,15 +51,15 @@ address space to be unavailable even after it has remained unreachable
 for prolonged periods; there is no universally applicable time limit
 after which one of the remaining peers could decide unilaterally that
 it is safe to appropriate the space for itself, and so an
-adminstrative action is required to reclaim it.
+administrative action is required to reclaim it.
 
 The `weave rmpeer` command is provided to perform this task, and must
 be executed on one of the remaining peers. That peer will take
-ownership of the freed adress space.
+ownership of the freed address space.
 
 ## Rolling Upgrades
 
-Protocol versioning and feature negotation are employed in Weave Net
+Protocol versioning and feature negotiation are employed in Weave Net
 to enable incremental rolling upgrades - each release maintains the
 ability to speak to the previous version (at a minimum), and connected
 peers only utilise features which both support. The general upgrade
