@@ -425,9 +425,8 @@ func createAllocator(router *weave.NetworkRouter, config ipamConfig, db db.DB,
 	isKnownPeer func(mesh.PeerName) bool, useAWSVPC bool) (*ipam.Allocator, address.CIDR) {
 
 	var (
-		mon           = monitor.Monitor(monitor.NewNullMonitor())
-		err           error
-		isCIDRAligned bool
+		mon = monitor.Monitor(monitor.NewNullMonitor())
+		err error
 	)
 
 	ipRange, err := ipam.ParseCIDRSubnet(config.IPRangeCIDR)
@@ -447,21 +446,19 @@ func createAllocator(router *weave.NetworkRouter, config ipamConfig, db db.DB,
 		if err != nil {
 			Log.Fatalf("Cannot start NewAwsVPCMonitor due to %s", err)
 		}
-		isCIDRAligned = true
 	}
 
 	c := ipam.Config{
-		OurName:       router.Ourself.Peer.Name,
-		OurUID:        router.Ourself.Peer.UID,
-		OurNickname:   router.Ourself.Peer.NickName,
-		Seed:          config.SeedPeerNames,
-		Universe:      ipRange.Range(),
-		IsObserver:    config.Observer,
-		Quorum:        func() uint { return determineQuorum(config.PeerCount, router) },
-		Db:            db,
-		IsKnownPeer:   isKnownPeer,
-		IsCIDRAligned: isCIDRAligned,
-		Monitor:       mon,
+		OurName:     router.Ourself.Peer.Name,
+		OurUID:      router.Ourself.Peer.UID,
+		OurNickname: router.Ourself.Peer.NickName,
+		Seed:        config.SeedPeerNames,
+		Universe:    ipRange.Range(),
+		IsObserver:  config.Observer,
+		Quorum:      func() uint { return determineQuorum(config.PeerCount, router) },
+		Db:          db,
+		IsKnownPeer: isKnownPeer,
+		Monitor:     mon,
 	}
 
 	allocator := ipam.NewAllocator(c)
