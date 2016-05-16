@@ -49,7 +49,7 @@ func CreateBridge(config *BridgeConfig) (BridgeType, error) {
 		bridgeType = Bridge
 		if !config.NoFastdp {
 			bridgeType = BridgedFastdp
-			if !config.NoBridgedFastdp {
+			if config.NoBridgedFastdp {
 				bridgeType = Fastdp
 				config.DatapathName = config.WeaveBridgeName
 			}
