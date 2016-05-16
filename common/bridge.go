@@ -23,15 +23,8 @@ type BridgeConfig struct {
 	MTU              int
 }
 
-type bridgeContext struct {
-	WeaveBridge netlink.Link
-	Datapath    netlink.Link
-}
-
 func CreateBridge(config *BridgeConfig) (BridgeType, error) {
-	context = &bridgeContext{}
-
-	bridgeType := detectBridgeType(config, context)
+	bridgeType := detectBridgeType(config)
 
 	if bridgeType == None {
 		bridgeType = Bridge
@@ -53,11 +46,11 @@ func CreateBridge(config *BridgeConfig) (BridgeType, error) {
 		var err error
 		switch bridgeType {
 		case Bridge:
-			err = initBridge(config, context)
+			err = initBridge(config)
 		case Fastdp:
-			err = initFastdp(config, context)
+			err = initFastdp(config)
 		case BridgedFastdp:
-			err = initBridgedFastdp(config, context)
+			err = initBridgedFastdp(config)
 		default:
 			err = fmt.Errorf("Cannot initialise bridge type %v", bridgeType)
 		}
@@ -65,7 +58,7 @@ func CreateBridge(config *BridgeConfig) (BridgeType, error) {
 			return None, err
 		}
 
-		configureIPTables(config, context)
+		configureIPTables(config)
 	}
 
 	if bridgeType == Bridge {
@@ -85,12 +78,9 @@ func CreateBridge(config *BridgeConfig) (BridgeType, error) {
 	return bridgeType, nil
 }
 
-func detectBridgeType(config *BridgeConfig, context *bridgeContext) BridgeType {
+func detectBridgeType(config *BridgeConfig) BridgeType {
 	bridge, _ := netlink.LinkByName(config.WeaveBridgeName)
 	datapath, _ := netlink.LinkByName(config.DatapathName)
-
-	context.bridge = bridge
-	context.datapath = datapath
 
 	switch {
 	case bridge == nil && datapath == nil:
@@ -122,7 +112,7 @@ func isDatapath(link netlink.Link) bool {
 	}
 }
 
-func initBridge(config BridgeConfig) error {
+func initBridge(config *BridgeConfig) error {
 	mac, err := PersistentMAC()
 	if err != nil {
 		mac, err = RandomMAC()
@@ -135,12 +125,12 @@ func initBridge(config BridgeConfig) error {
 	linkAttrs.Name = config.WeaveBridgeName
 	linkAttrs.HardwareAddr = mac
 	linkAttrs.MTU = config.MTU // TODO this probably doesn't work - see weave script
-	netlink.LinkAdd(&netlink.Bridge{linkAttrs})
+	netlink.LinkAdd(&netlink.Bridge{LinkAttrs: linkAttrs})
 
 	return nil
 }
 
-func initFastdp(config BridgeConfig) error {
+func initFastdp(config *BridgeConfig) error {
 	datapath, err := netlink.LinkByName(config.DatapathName)
 	if err != nil {
 		return err
@@ -148,7 +138,7 @@ func initFastdp(config BridgeConfig) error {
 	return netlink.LinkSetMTU(datapath, config.MTU)
 }
 
-func initBridgedFastdp(config BridgeConfig) error {
+func initBridgedFastdp(config *BridgeConfig) error {
 	if err := initFastdp(config); err != nil {
 		return err
 	}
@@ -187,7 +177,7 @@ func initBridgedFastdp(config BridgeConfig) error {
 	return nil
 }
 
-func configureIPTables(config BridgeConfig) error {
+func configureIPTables(config *BridgeConfig) error {
 	return fmt.Errorf("Not implemented")
 }
 
