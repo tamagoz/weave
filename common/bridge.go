@@ -1,6 +1,7 @@
 package common
 
 import "fmt"
+import "net"
 import "github.com/vishvananda/netlink"
 import "github.com/weaveworks/weave/common/odp"
 import "github.com/coreos/go-iptables/iptables"
@@ -43,6 +44,7 @@ type BridgeConfig struct {
 }
 
 func CreateBridge(config *BridgeConfig) (BridgeType, error) {
+	var e ErrorHandler
 	bridgeType := DetectBridgeType(config)
 
 	if bridgeType == None {
@@ -62,41 +64,28 @@ func CreateBridge(config *BridgeConfig) (BridgeType, error) {
 			}
 		}
 
-		var err error
 		switch bridgeType {
 		case Bridge:
-			err = initBridge(config)
+			e.Err = initBridge(config)
 		case Fastdp:
-			err = initFastdp(config)
+			e.Err = initFastdp(config)
 		case BridgedFastdp:
-			err = initBridgedFastdp(config)
+			e.Err = initBridgedFastdp(config)
 		default:
-			err = fmt.Errorf("Cannot initialise bridge type %v", bridgeType)
-		}
-		if err != nil {
-			return None, err
+			e.Err = fmt.Errorf("Cannot initialise bridge type %v", bridgeType)
 		}
 
-		if err = configureIPTables(config); err != nil {
-			return bridgeType, err
-		}
+		e.Do(func() { e.Err = configureIPTables(config) })
 	}
 
 	if bridgeType == Bridge {
-		if err := EthtoolTXOff(config.WeaveBridgeName); err != nil {
-			return bridgeType, err
-		}
+		e.Do(func() { e.Err = EthtoolTXOff(config.WeaveBridgeName) })
 	}
 
-	if err := linkSetUpByName(config.WeaveBridgeName); err != nil {
-		return bridgeType, err
-	}
+	e.Do(func() { e.Err = linkSetUpByName(config.WeaveBridgeName) })
+	e.Do(func() { e.Err = ConfigureARPCache(config.WeaveBridgeName) })
 
-	if err := ConfigureARPCache(config.WeaveBridgeName); err != nil {
-		return bridgeType, err
-	}
-
-	return bridgeType, nil
+	return bridgeType, e.Err
 }
 
 func DetectBridgeType(config *BridgeConfig) BridgeType {
@@ -134,6 +123,8 @@ func isDatapath(link netlink.Link) bool {
 }
 
 func initBridge(config *BridgeConfig) error {
+	var e ErrorHandler
+	var mac net.HardwareAddr
 	/* Derive the bridge MAC from the system (aka bios) UUID, or,
 	   failing that, the hypervisor UUID. Elsewhere we in turn derive
 	   the peer name from that, which we want to be stable across
@@ -141,16 +132,9 @@ func initBridge(config *BridgeConfig) error {
 	   that bill, unlike, say, /etc/machine-id, which is often
 	   identical on VMs created from cloned filesystems. If we cannot
 	   determine the system/hypervisor UUID we just generate a random MAC. */
-	mac, err := PersistentMAC("/sys/class/dmi/id/product_uuid")
-	if err != nil {
-		mac, err = PersistentMAC("/sys/hypervisor/uuid")
-		if err != nil {
-			mac, err = RandomMAC()
-			if err != nil {
-				return err
-			}
-		}
-	}
+	e.Do(func() { mac, e.Err = PersistentMAC("/sys/class/dmi/id/product_uuid") })
+	e.IfErr(func() { mac, e.Err = PersistentMAC("/sys/hypervisor/uuid") })
+	e.IfErr(func() { mac, e.Err = RandomMAC() })
 
 	linkAttrs := netlink.NewLinkAttrs()
 	linkAttrs.Name = config.WeaveBridgeName
@@ -160,11 +144,9 @@ func initBridge(config *BridgeConfig) error {
 		mtu = 65535
 	}
 	linkAttrs.MTU = mtu // TODO this probably doesn't work - see weave script
-	if err = netlink.LinkAdd(&netlink.Bridge{LinkAttrs: linkAttrs}); err != nil {
-		return err
-	}
+	e.Do(func() { e.Err = netlink.LinkAdd(&netlink.Bridge{LinkAttrs: linkAttrs}) })
 
-	return nil
+	return e.Err
 }
 
 func initFastdp(config *BridgeConfig) error {
@@ -185,12 +167,9 @@ func initFastdp(config *BridgeConfig) error {
 }
 
 func initBridgedFastdp(config *BridgeConfig) error {
-	if err := initFastdp(config); err != nil {
-		return err
-	}
-	if err := initBridge(config); err != nil {
-		return err
-	}
+	var e ErrorHandler
+	e.Do(func() { e.Err = initFastdp(config) })
+	e.Do(func() { e.Err = initBridge(config) })
 
 	link := &netlink.Veth{
 		LinkAttrs: netlink.LinkAttrs{
@@ -199,95 +178,61 @@ func initBridgedFastdp(config *BridgeConfig) error {
 		PeerName: "vethwe-datapath",
 	}
 
-	if err := netlink.LinkAdd(link); err != nil {
-		return err
-	}
+	e.Do(func() { e.Err = netlink.LinkAdd(link) })
+	var bridge netlink.Link
+	e.Do(func() { bridge, e.Err = netlink.LinkByName(config.WeaveBridgeName) })
+	e.Do(func() { e.Err = netlink.LinkSetMasterByIndex(link, bridge.Attrs().Index) })
+	e.Do(func() { e.Err = netlink.LinkSetUp(link) })
+	e.Do(func() { e.Err = linkSetUpByName(link.PeerName) })
+	e.Do(func() { e.Err = odp.AddDatapathInterface(config.DatapathName, link.PeerName) })
+	e.Do(func() { e.Err = linkSetUpByName(config.DatapathName) })
 
-	bridge, err := netlink.LinkByName(config.WeaveBridgeName)
-	if err != nil {
-		return err
+	if e.Err != nil {
+		return e.Err
 	}
-
-	if err := netlink.LinkSetMasterByIndex(link, bridge.Attrs().Index); err != nil {
-		return err
-	}
-
-	if err := netlink.LinkSetUp(link); err != nil {
-		return err
-	}
-	if err := linkSetUpByName(link.PeerName); err != nil {
-		return err
-	}
-
-	if err := odp.AddDatapathInterface(config.DatapathName, link.PeerName); err != nil {
-		return err
-	}
-
-	if err := linkSetUpByName(config.DatapathName); err != nil {
-		return err
-	}
-
 	return nil
 }
 
 // Add a rule to iptables, if it doesn't exist already
-func addIPTablesRule(ipt *iptables.IPTables, table, chain string, rulespec ...string) error {
-	exists, err := ipt.Exists(table, chain, rulespec...)
-	if err == nil && !exists {
-		err = ipt.Append(table, chain, rulespec...)
+func addIPTablesRule(e *ErrorHandler, ipt *iptables.IPTables, table, chain string, rulespec ...string) {
+	var exists bool
+	e.Do(func() { exists, e.Err = ipt.Exists(table, chain, rulespec...) })
+	if !exists {
+		e.Do(func() { e.Err = ipt.Append(table, chain, rulespec...) })
 	}
-	return err
 }
 
 func configureIPTables(config *BridgeConfig) error {
-	ipt, err := iptables.New()
-	if err != nil {
-		return err
-	}
+	var e ErrorHandler
+	var ipt *iptables.IPTables
+	e.Do(func() { ipt, e.Err = iptables.New() })
 	if config.WeaveBridgeName != config.DockerBridgeName {
-		err := ipt.Insert("filter", "FORWARD", 1, "-i", config.DockerBridgeName, "-o", config.WeaveBridgeName, "-j", "DROP")
-		if err != nil {
-			return err
-		}
+		e.Do(func() {
+			e.Err = ipt.Insert("filter", "FORWARD", 1, "-i", config.DockerBridgeName, "-o", config.WeaveBridgeName, "-j", "DROP")
+		})
 	}
 
-	dockerBridgeIP, err := DeviceIP(config.DockerBridgeName)
-	if err != nil {
-		return err
-	}
+	var dockerBridgeIP net.IP
+	e.Do(func() { dockerBridgeIP, e.Err = DeviceIP(config.DockerBridgeName) })
 
 	// forbid traffic to the Weave port from other containers
-	if err = addIPTablesRule(ipt, "filter", "INPUT", "-i", config.DockerBridgeName, "-p", "tcp", "--dst", dockerBridgeIP.String(), "--dport", fmt.Sprint(config.Port), "-j", "DROP"); err != nil {
-		return err
-	}
-	if err = addIPTablesRule(ipt, "filter", "INPUT", "-i", config.DockerBridgeName, "-p", "udp", "--dst", dockerBridgeIP.String(), "--dport", fmt.Sprint(config.Port), "-j", "DROP"); err != nil {
-		return err
-	}
-	if err = addIPTablesRule(ipt, "filter", "INPUT", "-i", config.DockerBridgeName, "-p", "udp", "--dst", dockerBridgeIP.String(), "--dport", fmt.Sprint(config.Port+1), "-j", "DROP"); err != nil {
-		return err
-	}
+	addIPTablesRule(&e, ipt, "filter", "INPUT", "-i", config.DockerBridgeName, "-p", "tcp", "--dst", dockerBridgeIP.String(), "--dport", fmt.Sprint(config.Port), "-j", "DROP")
+	addIPTablesRule(&e, ipt, "filter", "INPUT", "-i", config.DockerBridgeName, "-p", "udp", "--dst", dockerBridgeIP.String(), "--dport", fmt.Sprint(config.Port), "-j", "DROP")
+	addIPTablesRule(&e, ipt, "filter", "INPUT", "-i", config.DockerBridgeName, "-p", "udp", "--dst", dockerBridgeIP.String(), "--dport", fmt.Sprint(config.Port+1), "-j", "DROP")
 
 	// let DNS traffic to weaveDNS, since otherwise it might get blocked by the likes of UFW
-	if err = addIPTablesRule(ipt, "filter", "INPUT", "-i", config.DockerBridgeName, "-p", "udp", "--dport", "53", "-j", "ACCEPT"); err != nil {
-		return err
-	}
-	if err = addIPTablesRule(ipt, "filter", "INPUT", "-i", config.DockerBridgeName, "-p", "tcp", "--dport", "53", "-j", "ACCEPT"); err != nil {
-		return err
-	}
+	addIPTablesRule(&e, ipt, "filter", "INPUT", "-i", config.DockerBridgeName, "-p", "udp", "--dport", "53", "-j", "ACCEPT")
+	addIPTablesRule(&e, ipt, "filter", "INPUT", "-i", config.DockerBridgeName, "-p", "tcp", "--dport", "53", "-j", "ACCEPT")
 
 	// Work around the situation where there are no rules allowing traffic
 	// across our bridge. E.g. ufw
-	if err = addIPTablesRule(ipt, "filter", "FORWARD", "-i", config.WeaveBridgeName, "-o", config.WeaveBridgeName, "-j", "ACCEPT"); err != nil {
-		return err
-	}
+	addIPTablesRule(&e, ipt, "filter", "FORWARD", "-i", config.WeaveBridgeName, "-o", config.WeaveBridgeName, "-j", "ACCEPT")
 
 	// create a chain for masquerading
-	ipt.NewChain("nat", "WEAVE")
-	if err = addIPTablesRule(ipt, "nat", "POSTROUTING", "-j", "WEAVE"); err != nil {
-		return err
-	}
+	e.Do(func() { e.Err = ipt.NewChain("nat", "WEAVE") })
+	addIPTablesRule(&e, ipt, "nat", "POSTROUTING", "-j", "WEAVE")
 
-	return nil
+	return e.Err
 }
 
 func linkSetUpByName(linkName string) error {
