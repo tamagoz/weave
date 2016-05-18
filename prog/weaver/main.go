@@ -15,6 +15,7 @@ import (
 	"github.com/docker/docker/pkg/mflag"
 	"github.com/gorilla/mux"
 	"github.com/pkg/profile"
+	"github.com/vishvananda/netlink"
 	"github.com/weaveworks/mesh"
 
 	"github.com/weaveworks/go-checkpoint"
@@ -152,7 +153,6 @@ func main() {
 		bridgeConfig       common.BridgeConfig
 		networkConfig      weave.NetworkConfig
 		protocolMinVersion int
-		ifaceName          string
 		routerName         string
 		nickName           string
 		password           string
@@ -167,7 +167,6 @@ func main() {
 		peers              []string
 		noDNS              bool
 		dnsConfig          dnsConfig
-		datapathName       string
 		trustedSubnetStr   string
 		dbPrefix           string
 
@@ -182,7 +181,6 @@ func main() {
 	mflag.StringVar(&config.Host, []string{"-host"}, "", "router host")
 	mflag.IntVar(&config.Port, []string{"#port", "-port"}, mesh.Port, "router port")
 	mflag.IntVar(&protocolMinVersion, []string{"-min-protocol-version"}, mesh.ProtocolMinVersion, "minimum weave protocol version")
-	mflag.StringVar(&ifaceName, []string{"#iface", "-iface"}, "", "name of interface to capture/inject from (disabled if blank)")
 	mflag.StringVar(&bridgeConfig.WeaveBridgeName, []string{"-weave-bridge"}, "", "name of weave bridge")
 	mflag.StringVar(&bridgeConfig.DockerBridgeName, []string{"-docker-bridge"}, "", "name of Docker bridge")
 	mflag.StringVar(&routerName, []string{"#name", "-name"}, "", "name of router (defaults to MAC of interface)")
@@ -207,7 +205,7 @@ func main() {
 	mflag.IntVar(&dnsConfig.TTL, []string{"-dns-ttl"}, nameserver.DefaultTTL, "TTL for DNS request from our domain")
 	mflag.DurationVar(&dnsConfig.ClientTimeout, []string{"-dns-fallback-timeout"}, nameserver.DefaultClientTimeout, "timeout for fallback DNS requests")
 	mflag.StringVar(&dnsConfig.EffectiveListenAddress, []string{"-dns-effective-listen-address"}, "", "address DNS will actually be listening, after Docker port mapping")
-	mflag.StringVar(&datapathName, []string{"-datapath"}, "", "ODP datapath name")
+	mflag.StringVar(&bridgeConfig.DatapathName, []string{"-datapath"}, "", "ODP datapath name")
 	mflag.StringVar(&trustedSubnetStr, []string{"-trusted-subnets"}, "", "comma-separated list of trusted subnets in CIDR notation")
 	mflag.StringVar(&dbPrefix, []string{"-db-prefix"}, "/weavedb/weave", "pathname/prefix of filename to store data")
 
@@ -249,10 +247,9 @@ func main() {
 		networkConfig.PacketLogging = nopPacketLogging{}
 	}
 
-	bridgeConfig.DatapathName = datapathName
-	_, err := common.CreateBridge(&bridgeConfig)
+	bridgeType, err := common.CreateBridge(&bridgeConfig)
 	checkFatal(err)
-	overlay, bridge := createOverlay(datapathName, ifaceName, config.Host, config.Port, bufSzMB)
+	overlay, bridge := createOverlay(bridgeType, bridgeConfig, config.Host, config.Port, bufSzMB)
 	networkConfig.Bridge = bridge
 
 	name := peerName(routerName, bridge.Interface())
@@ -390,21 +387,23 @@ func (nopPacketLogging) LogPacket(string, weave.PacketKey) {
 func (nopPacketLogging) LogForwardPacket(string, weave.ForwardPacketKey) {
 }
 
-func createOverlay(datapathName string, ifaceName string, host string, port int, bufSzMB int) (weave.NetworkOverlay, weave.Bridge) {
+func createOverlay(bridgeType common.BridgeType, config common.BridgeConfig, host string, port int, bufSzMB int) (weave.NetworkOverlay, weave.Bridge) {
 	overlay := weave.NewOverlaySwitch()
 	var bridge weave.Bridge
-	switch {
-	case datapathName != "" && ifaceName != "":
-		Log.Fatal("At most one of --datapath and --iface must be specified.")
-	case datapathName != "":
-		iface, err := weavenet.EnsureInterface(datapathName)
+	switch bridgeType {
+	case common.Fastdp, common.BridgedFastdp:
+		iface, err := weavenet.EnsureInterface(config.DatapathName)
 		checkFatal(err)
 		fastdp, err := weave.NewFastDatapath(iface, port)
 		checkFatal(err)
 		bridge = fastdp.Bridge()
 		overlay.Add("fastdp", fastdp.Overlay())
-	case ifaceName != "":
-		iface, err := weavenet.EnsureInterface(ifaceName)
+	case common.Bridge:
+		bridgeIfName, pcapIfaceName := "vethwe-bridge", "vethwe-pcap"
+		err := common.CreateVethIfNotExist(bridgeIfName, pcapIfaceName, config.MTU, func(veth netlink.Link) error {
+			return common.AddInterfaceToBridge(veth, config.WeaveBridgeName)
+		})
+		iface, err := weavenet.EnsureInterface(pcapIfaceName)
 		checkFatal(err)
 		bridge, err = weave.NewPcap(iface, bufSzMB*1024*1024) // bufsz flag is in MB
 		checkFatal(err)
