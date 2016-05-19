@@ -895,6 +895,7 @@ setup_router_iface_fastdp() {
 }
 
 setup_router_iface_bridge() {
+    # TODO(mp) maybe get rid of this condition
     if [ -z "$AWSVPC" ]; then
         create_veth $BRIDGE_IFNAME $PCAP_IFNAME add_iface_bridge $BRIDGE_IFNAME
     fi
@@ -910,7 +911,7 @@ container_in_host_ns() {
 
 attach() {
     if [[ -n "$AWSVPC" && $(echo "$@" | wc -w) -gt 1 ]]; then
-        echo "AWSVPC is enabled, therefore only one address can be attached to" >&2
+        echo -n "AWSVPC is enabled, therefore only one address can be attached to" >&2
         echo " the container" >&2
         return 1
     fi
@@ -1704,7 +1705,10 @@ launch_router() {
     setup_router_iface_$BRIDGE_TYPE
     wait_for_status $CONTAINER_NAME http_call $HTTP_ADDR
     [ -n "$ALREADY_RUNNING_CONTAINER" ] || populate_router
-    [ -z "$AWSVPC" ] || expose
+    if [ -n "$AWSVPC" ]; then
+        expose
+        echo 1 >/proc/sys/net/ipv4/conf/$BRIDGE/proxy_arp
+    fi
 }
 
 # Recreate the parameter values that are set when the router is first launched
