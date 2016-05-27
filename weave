@@ -671,13 +671,14 @@ expose() {
         if ! ip addr show dev $BRIDGE | grep -qF $CIDR ; then
             ip addr add dev $BRIDGE $CIDR
             arp_update $BRIDGE $CIDR || true
-            # TODO(mp) the following rule is not needed
-            add_iptables_rule nat WEAVE -s $CIDR -d 224.0.0.0/4 -j RETURN
-            add_iptables_rule nat WEAVE -d $CIDR ! -s $CIDR -j MASQUERADE
-            add_iptables_rule nat WEAVE -s $CIDR ! -d $CIDR -j MASQUERADE
-            # Remove a default route installed by the kernel, because awsvpc
-            # has installed it as well
-            if [ -n "$AWSVPC" ]; then
+
+            if [ -z "$AWSVPC" ]; then
+                add_iptables_rule nat WEAVE -s $CIDR -d 224.0.0.0/4 -j RETURN
+                add_iptables_rule nat WEAVE -d $CIDR ! -s $CIDR -j MASQUERADE
+                add_iptables_rule nat WEAVE -s $CIDR ! -d $CIDR -j MASQUERADE
+            else
+                # Remove a default route installed by the kernel, because awsvpc
+                # has installed it as well
                 RCIDR=$(ip route list exact $CIDR proto kernel | head -n1 | cut -d ' ' -f1)
                 [ -n "$RCIDR" ] && ip route del dev $BRIDGE proto kernel $RCIDR
             fi
@@ -686,16 +687,6 @@ expose() {
     done
     show_addrs $ALL_CIDRS
 }
-
-report() {
-    if [ $# -gt 0 ] ; then
-        [ $# -eq 2 -a "$1" = "-f" ] || usage
-        call_weave GET /report --get --data-urlencode "format=$2"
-    else
-        call_weave GET /report -H 'Accept: application/json'
-    fi
-}
-
 
 # create veth with ends $1-$2, and then invoke $3..., removing the
 # veth on failure. No-op of veth already exists.
@@ -908,35 +899,9 @@ container_in_host_ns() {
 }
 
 attach() {
-    if [[ -n "$AWSVPC" && $(echo "$@" | wc -w) -gt 1 ]]; then
-        echo -n "AWSVPC is enabled, therefore only one address can be attached to" >&2
-        echo " the container" >&2
-        return 1
-    fi
-
     ATTACH_ARGS=""
     [ -n "$NO_MULTICAST_ROUTE" ] && ATTACH_ARGS="--no-multicast-route"
     util_op attach-container $ATTACH_ARGS $CONTAINER $BRIDGE $MTU "$@"
-}
-
-detach() {
-    netnsenter ip link show $CONTAINER_IFNAME >/dev/null 2>&1 || return 0
-
-    for ADDR in "$@" ; do
-        if ! netnsenter ip addr show dev $CONTAINER_IFNAME | grep -F $ADDR >/dev/null ; then
-            # address is not there, leave the device alone
-            continue
-        fi
-        netnsenter ip addr del $ADDR dev $CONTAINER_IFNAME || return 1
-    done
-
-    if [ -n "$(netnsenter ip -f inet addr show dev $CONTAINER_IFNAME)" ] ; then
-        # other addresses are left, leave the device alone
-        return 0
-    fi
-
-    # Deleting the interface will delete the multicast route we set up
-    netnsenter ip link del $CONTAINER_IFNAME type veth
 }
 
 ######################################################################
@@ -2045,7 +2010,12 @@ EOF
         [ $res -eq 0 ]
         ;;
     report)
-        report "$@"
+        if [ $# -gt 0 ] ; then
+            [ $# -eq 2 -a "$1" = "-f" ] || usage
+            call_weave GET /report --get --data-urlencode "format=$2"
+        else
+            call_weave GET /report -H 'Accept: application/json'
+        fi
         ;;
     run)
         dns_args "$@"
